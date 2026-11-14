@@ -1,8 +1,13 @@
 name: Relevé Sportips
 
+# Une exécution = une boucle de relevés toutes les 5 min pendant ~5h30, puis elle relance la suivante.
+# Le « schedule » n'est qu'un filet de sécurité pour redémarrer la chaîne si elle s'arrête
+# (GitHub le déclenche avec beaucoup de retard, parfois jamais : on ne compte pas dessus).
+# Pour démarrer ou redémarrer à la main : Actions → Relevé Sportips → Run workflow.
+
 on:
   schedule:
-    - cron: "*/15 * * * *"   # GitHub lance souvent avec 5 à 20 min de retard
+    - cron: "*/30 * * * *"
   workflow_dispatch:
     inputs:
       refresh_roster:
@@ -11,8 +16,10 @@ on:
         default: false
 
 permissions:
-  contents: write
+  contents: write # pousser les données
+  actions: write  # relancer ce workflow à la fin de la boucle
 
+# Une seule boucle à la fois : une exécution lancée pendant une boucle attend qu'elle se termine.
 concurrency:
   group: scrape
   cancel-in-progress: false
@@ -20,7 +27,7 @@ concurrency:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 350 # maximum GitHub : 360
     steps:
       - uses: actions/checkout@v4
 
@@ -28,17 +35,48 @@ jobs:
         with:
           node-version: 20
 
-      - name: Relevé
-        run: node scraper/scrape.mjs
+      - name: Relevés toutes les 5 min
+        id: loop
         env:
+          INTERVAL: 300     # secondes entre deux relevés
+          MAX_MINUTES: 330  # durée d'une boucle avant relance
           REFRESH_ROSTER: ${{ inputs.refresh_roster && '1' || '' }}
-
-      - name: Commit des données
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
-          git add data
-          if git diff --cached --quiet; then echo "Rien de nouveau."; exit 0; fi
-          git commit -m "Relevé $(date -u +'%Y-%m-%d %H:%M') UTC"
-          git pull --rebase --autostash
-          git push
+          stop_at=$(( $(date +%s) + MAX_MINUTES * 60 ))
+          while :; do
+            started=$(date +%s)
+            code=0; node scraper/scrape.mjs || code=$?
+            if [ "$code" -eq 78 ]; then
+              echo "Événement terminé : arrêt de la boucle."
+              echo "finished=1" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            unset REFRESH_ROSTER # seulement au premier passage
+
+            git add data
+            if git diff --cached --quiet; then
+              echo "Rien de nouveau."
+            else
+              git commit -q -m "Relevé $(date -u +'%Y-%m-%d %H:%M') UTC"
+              if ! git pull -q --rebase; then
+                # conflit improbable : on s'aligne sur GitHub, le relevé suivant réécrit tout
+                git rebase --abort || true
+                git fetch -q origin && git reset -q --hard "origin/${GITHUB_REF_NAME}"
+              fi
+              git push -q || echo "Push impossible, nouvel essai au prochain relevé."
+            fi
+
+            next=$(( started + INTERVAL ))
+            [ "$next" -ge "$stop_at" ] && break
+            wait=$(( next - $(date +%s) ))
+            [ "$wait" -gt 0 ] && sleep "$wait"
+          done
+          echo "Fin de la boucle, relance."
+
+      - name: Relancer la boucle
+        if: ${{ !cancelled() && steps.loop.outputs.finished != '1' }}
+        run: gh workflow run scrape.yml --ref "$GITHUB_REF_NAME"
+        env:
+          GH_TOKEN: ${{ github.token }}

@@ -13,13 +13,17 @@ Site statique sur GitHub Pages, sans compte : tout le monde ouvre la même adres
 ## Comment ça marche
 
 ```
-GitHub Actions (toutes les 15 min)
+GitHub Actions (toutes les 5 min)
   └─ scraper/scrape.mjs ──► API publique Sportips
        ├─ data/roster.json   marcheurs de l'équipe (recherchés 1 fois par jour)
        ├─ data/history.json  un relevé par ligne : équipe + marcheurs ayant marché
        └─ data/latest.json   dernier passage, erreurs, stats de tous les marcheurs
 index.html + app.js  ──► lisent config.json et data/, se rafraîchissent toutes les 5 min
 ```
+
+Le robot (`.github/workflows/scrape.yml`) ne compte pas sur le déclenchement planifié de GitHub, qui a souvent des heures de retard : chaque exécution fait elle-même un relevé toutes les 5 min pendant 5h30, pousse les données après chaque relevé, puis relance l'exécution suivante. Un déclenchement toutes les 30 min sert seulement de filet de sécurité si la chaîne s'arrête. Pour (re)démarrer à la main : *Actions → Relevé Sportips → Run workflow*. La boucle s'arrête seule 6 h après la fin de l'événement.
+
+Sur le site, un marcheur est **en piste** si un nouveau tour est apparu dans les 4 derniers relevés (20 min), sinon **en pause**.
 
 API utilisée (publique, sans token) : `https://inscription.sportips.fr/api/chronometrie/endpoints/public`
 
@@ -30,8 +34,8 @@ API utilisée (publique, sans token) : `https://inscription.sportips.fr/api/chro
 | `POST /results/get.php` `{id_race, search_terms, order_by, page, limit≤100}` | tours, km, classements d'un marcheur |
 | `GET /customResults/list.php?event_id=…` puis `/customResults/get.php?id=…&page=…&limit=100` | classement des équipes |
 
-Le relevé fait **un appel par dossard** toutes les 15 min, plus 5 appels pour le classement des équipes. La recherche des membres de l'équipe (≈ 130 appels) n'a lieu qu'une fois par jour.
-L'API ne publie pas l'heure de chaque tour : le « dernier tour » et les courbes viennent des relevés, à 15 min près.
+Le relevé fait **un appel par dossard** toutes les 5 min, plus 5 appels pour le classement des équipes. La recherche des membres de l'équipe (≈ 130 appels) n'a lieu qu'une fois par jour.
+L'API ne publie pas l'heure de chaque tour : le « dernier tour » et les courbes viennent des relevés, à 5 min près.
 
 ## Réglages (`config.json`)
 

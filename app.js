@@ -3,7 +3,10 @@
 "use strict";
 
 const REFRESH_MS = 5 * 60e3;
-const ON_TRACK_MIN = 35; // un tour gagné dans les 35 dernières minutes = « en piste » (relevés toutes les 15 min, avec retard possible)
+const SCRAPE_MIN = 5; // un relevé toutes les 5 min
+// « En piste » tant qu'un tour est apparu dans les 4 derniers relevés (20 min) : un tour de 1 km à pied
+// peut prendre plus de 5 min, mais pas 20. Au-delà : en pause. (+2 min de marge sur l'heure des relevés)
+const ON_TRACK_MIN = 4 * SCRAPE_MIN + 2;
 
 let CFG, ROSTER, HIST, LATEST, TZ, LAP;
 let members = [], byBib = {}, days = [];
@@ -116,7 +119,11 @@ function hourly(fn) {
 }
 function state(m) {
   if (!m.laps) return { k: "off", t: m.sex === "F" ? "Pas encore partie" : "Pas encore parti" };
-  if (m.lastLap && (NOW - new Date(m.lastLap)) / 60000 <= ON_TRACK_MIN) return { k: "on", t: "En piste" };
+  // compté depuis le dernier relevé, pas depuis maintenant : un robot en retard ne met pas tout le monde en pause.
+  // Mais si plus aucun relevé n'arrive (> 15 min), on repasse sur l'heure réelle.
+  const checked = new Date(LATEST?.checkedAt ?? HIST.at(-1)?.t ?? NOW);
+  const ref = NOW - checked > 15 * 60e3 ? NOW : checked;
+  if (m.lastLap && (ref - new Date(m.lastLap)) / 60000 <= ON_TRACK_MIN) return { k: "on", t: "En piste" };
   return { k: "pause", t: m.lastLap ? ago(m.lastLap, true) : "En pause" };
 }
 const pill = m => { const s = state(m); return `<span class="pill ${s.k}" title="${s.k === "pause" && m.lastLap ? "Dernier tour " + esc(ago(m.lastLap)) : ""}">${esc(s.t)}</span>`; };
@@ -148,7 +155,7 @@ function renderHeader(view) {
   track.innerHTML = days.map((_, i) => `<span class="${i < doneUpTo ? "done" : i === di && NOW <= end ? "today" : ""}" style="--p:${Math.round(frac * 100)}%"></span>`).join("");
 
   // alerte si les relevés sont en retard pendant la course
-  const late = running && checked && (NOW - new Date(checked)) > 75 * 60e3;
+  const late = running && checked && (NOW - new Date(checked)) > 20 * 60e3;
   const errs = LATEST?.errors?.length ? `${plural(LATEST.errors.length, "erreur")} au dernier relevé.` : "";
   $("#notice").hidden = !(late || errs);
   $("#noticeText").textContent = late ? `Pas de nouveau relevé depuis ${ago(checked, true)}. GitHub Actions est sans doute en retard ; les chiffres reviendront tout seuls. ${errs}` : errs;
@@ -166,7 +173,7 @@ function renderFoot() {
   const ev = HIST.at(-1)?.event;
   $("#foot").innerHTML = `
     ${ev ? `<span>Toute la course : <b>${int(Math.round(ev.totalKm))} km</b> par <b>${int(ev.teams)} équipes</b>${ev.leader ? ` · en tête <b>${esc(ev.leader.name)}</b> (${int(ev.leader.laps)} tours)` : ""}</span>` : "<span></span>"}
-    <span>Source : chronométrage Sportips, relevé toutes les 15 min · 1 tour = ${String(LAP).replace(".", ",")} km</span>`;
+    <span>Source : chronométrage Sportips, relevé toutes les ${SCRAPE_MIN} min · 1 tour = ${String(LAP).replace(".", ",")} km</span>`;
 }
 
 /* ---------- suivis ---------- */
@@ -435,7 +442,7 @@ function render(keepScroll) {
   renderHeader(r.view);
   renderFoot();
   if (!HIST.length || !members.length) {
-    $("#view").innerHTML = `<p class="empty">Pas encore de relevé. Le premier arrivera au prochain passage du robot (toutes les 15 min).</p>`;
+    $("#view").innerHTML = `<p class="empty">Pas encore de relevé. Le premier arrivera au prochain passage du robot (toutes les ${SCRAPE_MIN} min).</p>`;
     return;
   }
   if (r.runner) { $("#view").innerHTML = runnerView(r.runner); drawRunner(r.runner); document.title = `${r.runner.name} · ${CFG.team.label}`; }

@@ -27,13 +27,21 @@ function cap(s) { return String(s ?? "").toLowerCase().replace(/(^|[\s\-'’])(\
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const isTeam = r => [r.organization, r.club, r.team_name].some(v => norm(v) === ORG);
 
-async function api(route, body) {
-  const res = await fetch(API + route, {
-    method: body ? "POST" : "GET",
-    headers: { "Accept": "application/json", ...(body ? { "Content-Type": "application/json" } : {}) },
-    body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(20_000),
-  });
+async function api(route, body, tries = 3) {
+  let res;
+  try {
+    res = await fetch(API + route, {
+      method: body ? "POST" : "GET",
+      headers: { "Accept": "application/json", ...(body ? { "Content-Type": "application/json" } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch (e) {
+    if (tries > 1) { await sleep(3000); return api(route, body, tries - 1); }
+    throw new Error(`${route} → ${e.message}`);
+  }
+  // API saturée ou qui nous limite : on attend un peu et on réessaie
+  if ((res.status === 429 || res.status >= 500) && tries > 1) { await sleep(res.status === 429 ? 15_000 : 3000); return api(route, body, tries - 1); }
   if (!res.ok) throw new Error(`${route} → HTTP ${res.status}`);
   const text = await res.text();
   let json;
@@ -67,7 +75,7 @@ function runnerStats(r) {
 const endLimit = new Date(cfg.event.end).getTime() + 6 * 3600e3;
 if (now.getTime() > endLimit && !process.env.FORCE) {
   console.log("Événement terminé : plus de relevé (FORCE=1 pour forcer).");
-  process.exit(0);
+  process.exit(78); // code compris par loop.sh : arrêter la boucle
 }
 const event = await api(`/event/get.php?base=${encodeURIComponent(cfg.event.base)}`);
 console.log(`Événement : ${event.name} (id ${event.id})`);
@@ -161,11 +169,11 @@ if (!team) {
 }
 
 // ---------- 5. écriture ----------
-// Dans l'historique : seulement les marcheurs qui ont marché, champs utiles aux courbes.
-const slim = Object.fromEntries(Object.entries(runners).filter(([, v]) => v.laps > 0)
-  .map(([b, v]) => [b, Object.fromEntries(Object.entries({ laps: v.laps, km: v.km, rank: v.rank, rankSex: v.rankSex, rankCat: v.rankCat }).filter(([, x]) => x != null))]));
+// Dans l'historique : seulement les marcheurs qui ont marché, et seulement tours + km (les courbes).
+// Les classements du moment sont dans latest.json. Un relevé toutes les 5 min : il faut rester léger.
+const slim = Object.fromEntries(Object.entries(runners).filter(([, v]) => v.laps > 0).map(([b, v]) => [b, { laps: v.laps, km: v.km }]));
 const snapshot = { t: now.toISOString(), event: eventTotals, team, runners: slim };
-const compact = s => JSON.stringify({ team: { laps: s.team?.laps, rank: s.team?.rank }, runners: Object.fromEntries(Object.entries(s.runners).map(([b, v]) => [b, [v.laps, v.rank ?? null]])) });
+const compact = s => JSON.stringify({ team: { laps: s.team?.laps, rank: s.team?.rank }, runners: Object.fromEntries(Object.entries(s.runners).map(([b, v]) => [b, v.laps])) });
 const last = history.at(-1);
 const changed = !last || compact(last) !== compact(snapshot);
 if (changed) history.push(snapshot);
