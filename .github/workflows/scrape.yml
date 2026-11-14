@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       refresh_roster:
-        description: "Reconstruire la liste des coureurs de l'équipe"
+        description: "Reconstruire la liste des marcheurs de l'équipe"
         type: boolean
         default: false
 

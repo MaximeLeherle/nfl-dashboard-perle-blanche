@@ -65,7 +65,7 @@ async function load() {
   // jours de l'événement
   days = [];
   for (let d = new Date(CFG.event.start); dayKey(d) <= dayKey(CFG.event.end); d = new Date(+d + 864e5)) days.push(dayKey(d));
-  // coureurs
+  // marcheurs
   const stats = LATEST?.stats ?? HIST.at(-1)?.runners ?? {};
   members = (ROSTER?.runners ?? []).map(r => {
     const s = stats[r.bib] ?? {};
@@ -157,8 +157,8 @@ function renderHeader(view) {
   $("#nav").innerHTML = `
     <a class="tab" href="#equipe" ${view === "equipe" ? 'aria-current="page"' : ""}><span class="sw"></span>${esc(CFG.team.label)} <small>${nb}</small></a>
     <a class="tab" href="#comparer" ${view === "comparer" ? 'aria-current="page"' : ""}>Comparer</a>
-    <select class="pick" id="pick" aria-label="Voir un coureur">
-      <option value="">Voir un coureur…</option>
+    <select class="pick" id="pick" aria-label="Voir un marcheur">
+      <option value="">Voir un marcheur…</option>
       ${[...members].sort((a, b) => a.last.localeCompare(b.last, "fr") || a.first.localeCompare(b.first, "fr")).map(m => `<option value="${m.bib}" ${view === "coureur-" + m.bib ? "selected" : ""}>${esc(m.last.toUpperCase())} ${esc(m.first)}${m.laps ? " · " + km(m.km) + " km" : ""}</option>`).join("")}
     </select>`;
 }
@@ -174,7 +174,7 @@ function followStrip() {
   const list = follows.map(b => byBib[b]).filter(Boolean);
   return `<div class="follow-strip"><span class="lbl">☆ Vos suivis</span>${list.length
     ? list.map(m => `<a class="chip" href="#coureur-${m.bib}">${esc(m.first)} ${esc(m.last[0])}. <span class="num">${km(m.km)} km</span></a>`).join("")
-    : `<span class="muted">Touchez l'étoile d'un coureur pour le garder ici. C'est mémorisé sur cet appareil, sans compte.</span>`}</div>`;
+    : `<span class="muted">Touchez l'étoile d'un marcheur pour le garder ici. C'est mémorisé sur cet appareil, sans compte.</span>`}</div>`;
 }
 function toggleFollow(bib) {
   bib = +bib;
@@ -208,7 +208,7 @@ function teamView() {
     <div>
       <div class="team"><span class="sw"></span><h2>${esc(CFG.team.name)}</h2></div>
       <div class="bigkm">${km(T.km)}<small>km</small></div>
-      <div class="sub">${int(T.laps)} tours · ${active.length} coureur${active.length > 1 ? "s" : ""} sur ${n} ${active.length > 1 ? "ont" : "a"} déjà roulé</div>
+      <div class="sub">${int(T.laps)} tours · ${active.length} marcheur${active.length > 1 ? "s" : ""} sur ${n} ${active.length > 1 ? "ont" : "a"} déjà marché</div>
     </div>
     <div class="panel">
       <span class="lbl">Classement des équipes</span>
@@ -221,8 +221,8 @@ function teamView() {
 
   <section class="kpis">
     <div class="kpi"><span class="lbl">Aujourd'hui</span><span class="num">${today == null ? "–" : km(today)} <small>km</small></span><p>${di >= 0 ? `Jour ${di + 1}, depuis minuit` : "en dehors des jours de course"}</p></div>
-    <div class="kpi"><span class="lbl">En piste</span><span class="num">${onTrack.length} <small>/ ${n}</small></span><div class="meter"><i style="width:${n ? active.length / n * 100 : 0}%"></i></div><p>${active.length} ${active.length > 1 ? "ont" : "a"} roulé au moins un tour</p></div>
-    <div class="kpi"><span class="lbl">Moyenne</span><span class="num">${km(active.length ? T.km / active.length : 0)} <small>km</small></span><p>par coureur qui a roulé</p></div>
+    <div class="kpi"><span class="lbl">En piste</span><span class="num">${onTrack.length} <small>/ ${n}</small></span><div class="meter"><i style="width:${n ? active.length / n * 100 : 0}%"></i></div><p>${active.length} ${active.length > 1 ? "ont" : "a"} marché au moins un tour</p></div>
+    <div class="kpi"><span class="lbl">Moyenne</span><span class="num">${km(active.length ? T.km / active.length : 0)} <small>km</small></span><p>par personne qui a marché</p></div>
     <div class="kpi"><span class="lbl">Dernier tour</span><span class="num">${last ? ago(last, true) : "–"}</span><p>${last ? "vu au relevé de " + hhmm(last) : "aucun depuis le début du suivi"}</p></div>
   </section>
 
@@ -233,7 +233,7 @@ function teamView() {
     </div>
     <div class="card">
       <div class="card-h"><div><h3>Podium de l'équipe</h3><p>Touchez un nom pour sa fiche</p></div></div>
-      <div class="podium">${active.slice(0, 3).map((m, i) => `<a class="pod" href="#coureur-${m.bib}"><span class="p">${i + 1}</span><span style="min-width:0"><div class="n">${esc(m.name)}</div><div class="m">${m.laps} tours${m.rank ? " · " + ord(m.rank) + " au général" : ""}</div></span><span class="num">${km(m.km)}</span></a>`).join("") || `<p class="empty">Personne n'a encore roulé.</p>`}</div>
+      <div class="podium">${active.slice(0, 3).map((m, i) => `<a class="pod" href="#coureur-${m.bib}"><span class="p">${i + 1}</span><span style="min-width:0"><div class="n">${esc(m.name)}</div><div class="m">${m.laps} tours${m.rank ? " · " + ord(m.rank) + " au général" : ""}</div></span><span class="num">${km(m.km)}</span></a>`).join("") || `<p class="empty">Personne n'a encore marché.</p>`}</div>
     </div>
   </section>
 
@@ -244,13 +244,13 @@ function teamView() {
   </section>
 
   <section class="card">
-    <div class="card-h"><div><h3>Les coureurs</h3><p>${n} inscrits sous « ${esc(CFG.team.organization)} » chez Sportips · touchez un nom pour sa fiche</p></div></div>
+    <div class="card-h"><div><h3>Les marcheurs</h3><p>${n} inscrits sous « ${esc(CFG.team.organization)} » chez Sportips · touchez un nom pour sa fiche</p></div></div>
     <div class="roster-tools">
-      <input class="search" id="q" type="search" placeholder="Chercher un prénom, un nom ou un dossard" value="${esc(query)}" aria-label="Chercher un coureur" autocomplete="off">
-      <div class="filters" role="group" aria-label="Filtrer">${[["all", "Tous"], ["on", "En piste"], ["ran", "Ont roulé"], ["off", "Pas encore partis"]].map(([v, l]) => `<button data-filter="${v}" aria-pressed="${filter === v}">${l} · ${counts[v]}</button>`).join("")}</div>
+      <input class="search" id="q" type="search" placeholder="Chercher un prénom, un nom ou un dossard" value="${esc(query)}" aria-label="Chercher un marcheur" autocomplete="off">
+      <div class="filters" role="group" aria-label="Filtrer">${[["all", "Tous"], ["on", "En piste"], ["ran", "Ont marché"], ["off", "Pas encore partis"]].map(([v, l]) => `<button data-filter="${v}" aria-pressed="${filter === v}">${l} · ${counts[v]}</button>`).join("")}</div>
     </div>
     <div class="rows">
-      <div class="row head lbl"><span></span><span class="pos">#</span><span>Coureur</span><span></span><span class="r" style="text-align:right">Km</span><span class="r tours">Tours</span><span class="r gen">Général</span><span style="text-align:right">État</span></div>
+      <div class="row head lbl"><span></span><span class="pos">#</span><span>Marcheur</span><span></span><span class="r" style="text-align:right">Km</span><span class="r tours">Tours</span><span class="r gen">Général</span><span style="text-align:right">État</span></div>
       ${rows.map(m => `
       <a class="row" href="#coureur-${m.bib}">
         ${starBtn(m)}
@@ -261,13 +261,13 @@ function teamView() {
         <span class="r tours">${m.laps || "–"}</span>
         <span class="r gen">${m.rank ? ord(m.rank) : "–"}</span>
         ${pill(m)}
-      </a>`).join("") || `<p class="empty">Aucun coureur ne correspond.</p>`}
+      </a>`).join("") || `<p class="empty">Aucun marcheur ne correspond.</p>`}
     </div>
-    ${total > rows.length ? `<button class="more" id="more">Afficher les ${total} coureurs</button>` : ""}
+    ${total > rows.length ? `<button class="more" id="more">Afficher les ${total} marcheurs</button>` : ""}
   </section>`;
 }
 
-/* ---------- fiche coureur ---------- */
+/* ---------- fiche marcheur ---------- */
 function runnerView(m) {
   const n = members.length, d = daily(s => runnerKm(s, m.bib)), di = days.indexOf(dayKey(NOW));
   const best = d.reduce((b, v, i) => v != null && v > (b.v ?? 0) ? { v, i } : b, {});
@@ -304,7 +304,7 @@ function runnerView(m) {
   </section>`;
 }
 
-/* ---------- comparer deux coureurs ---------- */
+/* ---------- comparer deux marcheurs ---------- */
 function compareView(a, b) {
   const opts = sel => [...members].sort((x, y) => x.last.localeCompare(y.last, "fr")).map(m => `<option value="${m.bib}" ${m.bib === sel ? "selected" : ""}>${esc(m.name)}${m.laps ? " · " + km(m.km) + " km" : ""}</option>`).join("");
   const da = daily(s => runnerKm(s, a.bib)), db = daily(s => runnerKm(s, b.bib)), di = days.indexOf(dayKey(NOW));
@@ -323,9 +323,9 @@ function compareView(a, b) {
   return `
   <section class="card">
     <div class="pickers">
-      <select id="pa" style="--a:var(--team)" aria-label="Premier coureur">${opts(a.bib)}</select>
+      <select id="pa" style="--a:var(--team)" aria-label="Premier marcheur">${opts(a.bib)}</select>
       <span class="vs">VS</span>
-      <select id="pb" style="--a:var(--team-2)" aria-label="Second coureur">${opts(b.bib)}</select>
+      <select id="pb" style="--a:var(--team-2)" aria-label="Second marcheur">${opts(b.bib)}</select>
     </div>
   </section>
   <p class="verdict">${lead}</p>
@@ -338,10 +338,10 @@ function compareView(a, b) {
   <section class="grid2 even">
     <div class="card"><div class="card-h"><div><h3>Kilomètres cumulés</h3><p>Un point par relevé</p></div></div>
       <div class="legend"><span><i style="background:var(--team)"></i>${esc(a.name)}</span><span><i style="background:var(--team-2)"></i>${esc(b.name)}</span></div>
-      <div class="chart sm"><canvas id="cCmp" role="img" aria-label="Kilomètres cumulés des deux coureurs"></canvas></div></div>
+      <div class="chart sm"><canvas id="cCmp" role="img" aria-label="Kilomètres cumulés des deux marcheurs"></canvas></div></div>
     <div class="card"><div class="card-h"><div><h3>Par jour</h3><p>Kilomètres parcourus chaque jour</p></div></div>
       <div class="legend"><span><i style="background:var(--team)"></i>${esc(a.first)}</span><span><i style="background:var(--team-2)"></i>${esc(b.first)}</span></div>
-      <div class="chart sm"><canvas id="cCmpDay" role="img" aria-label="Kilomètres par jour des deux coureurs"></canvas></div></div>
+      <div class="chart sm"><canvas id="cCmpDay" role="img" aria-label="Kilomètres par jour des deux marcheurs"></canvas></div></div>
   </section>
   <p class="muted"><a href="#coureur-${a.bib}">Fiche de ${esc(a.first)}</a> · <a href="#coureur-${b.bib}">Fiche de ${esc(b.first)}</a></p>`;
 }
