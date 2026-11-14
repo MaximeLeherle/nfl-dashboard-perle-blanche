@@ -1,0 +1,22 @@
+{
+  "team": {
+    "label": "Perle Blanche",
+    "name": "Champagne Perle Blanche",
+    "organization": "Champagne Perle Blanche",
+    "color": "#eb6834",
+    "colorDark": "#d95926",
+    "compareColor": "#2a78d6",
+    "compareColorDark": "#3987e5"
+  },
+  "event": {
+    "base": "NFL26",
+    "name": "No Finish Line Monaco 2026",
+    "lapKm": 1.054,
+    "start": "2026-11-14T14:00:00+01:00",
+    "end": "2026-11-22T14:00:00+01:00",
+    "timezone": "Europe/Monaco"
+  },
+  "extraRunners": [],
+  "excludeBibs": [],
+  "rosterRefreshHours": 24
+}
