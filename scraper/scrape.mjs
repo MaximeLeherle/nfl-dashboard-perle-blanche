@@ -2,8 +2,8 @@
 // Node 20+, sans dépendance (fetch natif). Lancer : npm run scrape
 //
 // À chaque passage :
-//  1. Liste des marcheurs de l'équipe (data/roster.json), reconstruite au plus une fois
-//     toutes les `rosterRefreshHours` en parcourant toutes les courses de l'événement.
+//  1. Parcours complet de toutes les courses, au plus une fois toutes les `scanMinutes` (60 par défaut) :
+//     liste des marcheurs de l'équipe (data/roster.json) et nombre de marcheurs ayant marché par équipe.
 //  2. Un appel par dossard pour ses tours / km / classements.
 //  3. Classement des équipes (total km de l'équipe, rang, voisins, total de l'événement).
 //  4. Ajout d'un relevé dans data/history.json et mise à jour de data/latest.json.
@@ -80,14 +80,17 @@ if (now.getTime() > endLimit && !process.env.FORCE) {
 const event = await api(`/event/get.php?base=${encodeURIComponent(cfg.event.base)}`);
 console.log(`Événement : ${event.name} (id ${event.id})`);
 
-// ---------- 2. liste des marcheurs de l'équipe ----------
+// ---------- 2. parcours complet : marcheurs de l'équipe + actifs par équipe ----------
 let roster = await readJson("roster.json", null);
-const rosterAge = roster ? (now - new Date(roster.updatedAt)) / 3600e3 : Infinity;
-const fresh = new Map(); // bib -> ligne API récupérée pendant la découverte (évite un 2e appel)
+const prevLatest = await readJson("latest.json", {});
+let scan = prevLatest.scan ?? null; // { at, active: { ÉQUIPE: nb de marcheurs ayant fait au moins un tour } }
+const scanAge = scan ? (now - new Date(scan.at)) / 60e3 : Infinity;
+const fresh = new Map(); // bib -> ligne API récupérée pendant le parcours (évite un 2e appel)
 
-if (!roster || rosterAge >= cfg.rosterRefreshHours || process.env.REFRESH_ROSTER) {
-  console.log("Recherche des marcheurs de l'équipe dans toutes les courses…");
+if (!roster || scanAge >= (cfg.scanMinutes ?? 60) || process.env.REFRESH_ROSTER) {
+  console.log("Parcours de toutes les courses (marcheurs de l'équipe, actifs par équipe)…");
   try {
+    const active = {};
     const races = (await api("/races/get.php", { event_id: event.id, with_count_runners: true })).filter(r => r.count_runners > 0);
     const extra = new Set((cfg.extraRunners ?? []).map(Number));
     const found = new Map();
@@ -96,7 +99,11 @@ if (!roster || rosterAge >= cfg.rosterRefreshHours || process.env.REFRESH_ROSTER
       do {
         const d = await api("/results/get.php", { id_race: race.id, order_by: "rank", page, limit: PAGE });
         last = d.pagination?.last_page || 1;
-        for (const r of d.runners ?? []) if (isTeam(r) || extra.has(r.bib)) { found.set(r.bib, runnerInfo(r)); fresh.set(r.bib, r); }
+        for (const r of d.runners ?? []) {
+          if (isTeam(r) || extra.has(r.bib)) { found.set(r.bib, runnerInfo(r)); fresh.set(r.bib, r); }
+          const o = norm(r.organization);
+          if (o && (r.lap_count ?? 0) > 0) active[o] = (active[o] || 0) + 1;
+        }
         page++;
       } while (page <= last);
       console.log(`  ${race.name} : ${last} page(s)`);
@@ -105,7 +112,8 @@ if (!roster || rosterAge >= cfg.rosterRefreshHours || process.env.REFRESH_ROSTER
     const runners = [...found.values()].filter(r => !exclude.has(r.bib)).sort((a, b) => a.last.localeCompare(b.last, "fr") || a.first.localeCompare(b.first, "fr"));
     if (!runners.length) throw new Error(`aucun marcheur trouvé pour « ${cfg.team.organization} »`);
     roster = { updatedAt: now.toISOString(), eventId: event.id, races: races.map(r => ({ id: r.id, name: r.name })), runners };
-    console.log(`  ${runners.length} marcheurs trouvés.`);
+    scan = { at: now.toISOString(), active };
+    console.log(`  ${runners.length} marcheurs dans l'équipe, ${Object.keys(active).length} équipes avec au moins un marcheur actif.`);
   } catch (e) {
     console.error("Recherche des marcheurs impossible :", e.message);
     if (!roster) process.exit(1);
@@ -152,13 +160,20 @@ try {
   const pick = o => o && { name: o.organization, rank: o.rank, laps: o.total_laps, km: o.total_distance_km };
   const i = orgs.findIndex(o => norm(o.organization) === ORG);
   if (i >= 0) team = { ...pick(orgs[i]), runners: orgs[i].nb_runners_total, above: pick(orgs[i - 1]) ?? null, below: pick(orgs[i + 1]) ?? null };
-  // Équipes de taille comparable : ±pct % de marcheurs (au moins ±min), triées comme le classement général
+  // Équipes de taille comparable : ±pct % de marcheurs (au moins ±min), comptés de deux façons :
+  // « reg » = inscrits (donné par Sportips), « act » = ayant fait au moins un tour (parcours horaire).
   if (i >= 0) {
-    const n = orgs[i].nb_runners_total, p = cfg.peers ?? {};
-    const w = Math.max(p.min ?? 2, Math.round(n * (p.pct ?? 25) / 100));
-    const lo = Math.max(1, n - w), hi = n + w;
-    peers = { lo, hi, teams: orgs.filter(o => o.nb_runners_total >= lo && o.nb_runners_total <= hi)
-      .map(o => ({ name: o.organization, rank: o.rank, runners: o.nb_runners_total, laps: o.total_laps, km: o.total_distance_km })) };
+    const p = cfg.peers ?? {};
+    const myActive = Object.values(runners).filter(v => v.laps > 0).length; // à jour à chaque relevé
+    const actOf = o => norm(o.organization) === ORG ? myActive : scan?.active?.[norm(o.organization)] ?? 0;
+    const tranche = (n, size) => {
+      if (!n) return null;
+      const w = Math.max(p.min ?? 2, Math.round(n * (p.pct ?? 25) / 100));
+      const lo = Math.max(1, n - w), hi = n + w;
+      return { lo, hi, teams: orgs.filter(o => size(o) >= lo && size(o) <= hi)
+        .map(o => ({ name: o.organization, rank: o.rank, runners: o.nb_runners_total, active: actOf(o), laps: o.total_laps, km: o.total_distance_km })) };
+    };
+    peers = { reg: tranche(orgs[i].nb_runners_total, o => o.nb_runners_total), act: scan ? tranche(myActive, actOf) : null, scanAt: scan?.at ?? null };
   }
   eventTotals = {
     totalKm: +orgs.reduce((s, o) => s + (o.total_distance_km || 0), 0).toFixed(1),
@@ -180,17 +195,20 @@ if (!team) {
 // Dans l'historique : seulement les marcheurs qui ont marché, et seulement tours + km (les courbes).
 // Les classements du moment sont dans latest.json. Un relevé toutes les 5 min : il faut rester léger.
 const slim = Object.fromEntries(Object.entries(runners).filter(([, v]) => v.laps > 0).map(([b, v]) => [b, { laps: v.laps, km: v.km }]));
-// Places dans la tranche « même taille » (même tri que le site), pour suivre leur évolution
-if (team && peers) {
-  const mine = t => norm(t.name) === ORG;
-  const byLaps = [...peers.teams].sort((a, b) => b.laps - a.laps || b.km - a.km);
-  const byPer = [...peers.teams].sort((a, b) => b.km / b.runners - a.km / a.runners || b.km - a.km);
-  team.peers = peers.teams.length;
-  team.peerRank = byLaps.findIndex(mine) + 1 || null;
-  team.peerRankPer = byPer.findIndex(mine) + 1 || null;
+// Places dans les tranches « même taille » (même tri que le site), pour suivre leur évolution
+const mine = t => norm(t.name) === ORG;
+for (const [key, sfx] of [["reg", ""], ["act", "A"]]) {
+  const P = team && peers?.[key];
+  if (!P) continue;
+  const size = t => key === "act" ? t.active : t.runners;
+  const byLaps = [...P.teams].sort((a, b) => b.laps - a.laps || b.km - a.km);
+  const byPer = [...P.teams].sort((a, b) => b.km / size(b) - a.km / size(a) || b.km - a.km);
+  team["peers" + sfx] = P.teams.length;
+  team["peerRank" + sfx] = byLaps.findIndex(mine) + 1 || null;
+  team["peerRankPer" + sfx] = byPer.findIndex(mine) + 1 || null;
 }
 const snapshot = { t: now.toISOString(), event: eventTotals, team, runners: slim };
-const compact = s => JSON.stringify({ team: { laps: s.team?.laps, rank: s.team?.rank, p: s.team?.peerRank, pp: s.team?.peerRankPer }, runners: Object.fromEntries(Object.entries(s.runners).map(([b, v]) => [b, v.laps])) });
+const compact = s => JSON.stringify({ team: { laps: s.team?.laps, rank: s.team?.rank, p: s.team?.peerRank, pp: s.team?.peerRankPer, pa: s.team?.peerRankA, ppa: s.team?.peerRankPerA }, runners: Object.fromEntries(Object.entries(s.runners).map(([b, v]) => [b, v.laps])) });
 const last = history.at(-1);
 const changed = !last || compact(last) !== compact(snapshot);
 if (changed) history.push(snapshot);
@@ -199,7 +217,7 @@ await mkdir(DATA, { recursive: true });
 await writeFile(path.join(DATA, "roster.json"), JSON.stringify(roster, null, 1) + "\n");
 // un relevé par ligne : des diffs git lisibles et un dépôt qui grossit peu
 await writeFile(path.join(DATA, "history.json"), "[\n" + history.map(s => JSON.stringify(s)).join(",\n") + "\n]\n");
-await writeFile(path.join(DATA, "latest.json"), JSON.stringify({ checkedAt: now.toISOString(), snapshotAt: history.at(-1).t, runners: roster.runners.length, errors, stats: runners, peers }) + "\n");
+await writeFile(path.join(DATA, "latest.json"), JSON.stringify({ checkedAt: now.toISOString(), snapshotAt: history.at(-1).t, runners: roster.runners.length, errors, stats: runners, peers, scan }) + "\n");
 
 const v = Object.values(runners);
 console.log(`Relevé ${changed ? "ajouté" : "identique au précédent (non ajouté)"} : ${v.length}/${roster.runners.length} marcheurs, ${v.filter(x => x.laps > 0).length} ont marché, équipe ${team.km} km${team.rank ? `, ${team.rank}e` : ""}${eventTotals ? `, événement ${eventTotals.totalKm} km` : ""}. ${errors.length} erreur(s).`);

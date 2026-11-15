@@ -6,7 +6,7 @@ Site statique sur GitHub Pages, sans compte : tout le monde ouvre la même adres
 ## Ce qu'on y trouve
 
 - **Équipe** : total de km et de tours, classement parmi toutes les équipes avec l'écart en tours avec l'équipe devant et derrière, km du jour, marcheurs en piste, courbe des km cumulés, rythme par heure ou par jour, podium et liste des marcheurs (recherche, filtres).
-- **Face aux équipes de notre taille** : classement parmi les équipes qui ont à peu près autant de marcheurs inscrits (±25 %, au moins ±2, réglable dans `config.json` → `peers`), au total ou en km par marcheur.
+- **Face aux équipes de notre taille** : classement parmi les équipes qui ont à peu près autant de marcheurs inscrits (±25 %, au moins ±2, réglable dans `config.json` → `peers`), au total ou en km par marcheur, en comptant les inscrits ou seulement ceux qui ont marché (comptage horaire).
 - **Objectif d'équipe** (si `team.goalKm` est renseigné dans `config.json`) : barre de progression, km et tours restants, km par jour nécessaires, projection au rythme des dernières 24 h.
 - **Évolution du classement** : places gagnées ou perdues depuis minuit (général, même taille, par marcheur) et courbe des places au fil des relevés.
 - **Fiche marcheur** (`#coureur-<dossard>`) : km, tours, classements général / catégorie / sexe, place dans l'équipe, progression et km par jour.
@@ -37,7 +37,7 @@ API utilisée (publique, sans token) : `https://inscription.sportips.fr/api/chro
 | `POST /results/get.php` `{id_race, search_terms, order_by, page, limit≤100}` | tours, km, classements d'un marcheur |
 | `GET /customResults/list.php?event_id=…` puis `/customResults/get.php?id=…&page=…&limit=100` | classement des équipes |
 
-Le relevé fait **un appel par dossard** toutes les 5 min, plus 5 appels pour le classement des équipes. La recherche des membres de l'équipe (≈ 130 appels) n'a lieu qu'une fois par jour.
+Le relevé fait **un appel par dossard** toutes les 5 min, plus 5 appels pour le classement des équipes. Le parcours complet de l'événement (≈ 130 appels : membres de l'équipe et marcheurs actifs de chaque équipe) n'a lieu qu'une fois par heure (`scanMinutes`).
 L'API ne publie pas l'heure de chaque tour : le « dernier tour » et les courbes viennent des relevés, à 5 min près.
 
 ## Réglages (`config.json`)
@@ -46,7 +46,7 @@ L'API ne publie pas l'heure de chaque tour : le « dernier tour » et les courbe
 - `team.color` / `colorDark` : couleur de l'équipe ; `compareColor` : couleur du 2e marcheur dans « Comparer ».
 - `extraRunners` : dossards à ajouter même s'ils ne sont pas inscrits sous l'équipe, ex. `[1234, 5678]`.
 - `excludeBibs` : dossards à retirer.
-- `rosterRefreshHours` : fréquence de la recherche des membres (24 h par défaut).
+- `scanMinutes` : fréquence du parcours complet (membres de l'équipe, marcheurs actifs par équipe), 60 min par défaut.
 
 Pour forcer une nouvelle recherche des membres : onglet **Actions** → « Relevé Sportips » → **Run workflow** → cocher « Reconstruire la liste des marcheurs ».
 

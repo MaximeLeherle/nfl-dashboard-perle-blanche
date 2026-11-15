@@ -11,7 +11,7 @@ const ON_TRACK_MIN = 4 * SCRAPE_MIN + 2;
 let CFG, ROSTER, HIST, LATEST, TZ, LAP;
 let members = [], byBib = {}, days = [];
 let NOW = new Date();
-let filter = "all", query = "", showAll = false, rhythm = "h", follows = [], peerSort = "km", peersAll = false, rankView = "g";
+let filter = "all", query = "", showAll = false, rhythm = "h", follows = [], peerSort = "km", peersAll = false, rankView = "g", peerBase = "reg";
 const charts = {};
 
 /* ---------- utilitaires ---------- */
@@ -300,13 +300,24 @@ function teamView() {
 }
 
 /* ---------- équipes de même taille ---------- */
+// peerBase : "reg" = taille comptée en inscrits, "act" = en marcheurs ayant fait au moins un tour
+const pk = k => peerBase === "act" ? k + "A" : k; // clé dans l'historique : peerRank / peerRankA…
+function peerData() {
+  const P = LATEST?.peers;
+  if (!P) return null;
+  if (!("reg" in P)) return peerBase === "reg" ? P : null; // ancien format
+  return P[peerBase];
+}
+const hasActive = () => !!LATEST?.peers?.act;
 // Classement parmi les équipes qui ont à peu près autant de marcheurs inscrits (tranche calculée par le relevé),
 // au total ou ramené au nombre de marcheurs (plus juste entre une équipe de 32 et une de 54).
 function peersCard() {
-  const P = LATEST?.peers;
+  if (peerBase === "act" && !hasActive()) peerBase = "reg";
+  const P = peerData();
   if (!P?.teams?.length) return "";
-  const me = norm(CFG.team.organization);
-  const all = P.teams.map(t => ({ ...t, per: t.runners ? t.km / t.runners : 0, me: norm(t.name) === me }));
+  const me = norm(CFG.team.organization), act = peerBase === "act";
+  const size = t => act ? t.active : t.runners;
+  const all = P.teams.map(t => ({ ...t, per: size(t) ? t.km / size(t) : 0, me: norm(t.name) === me }));
   const byKm = [...all].sort((a, b) => b.laps - a.laps || b.km - a.km);
   const byPer = [...all].sort((a, b) => b.per - a.per || b.km - a.km);
   const list = peerSort === "per" ? byPer : byKm;
@@ -322,7 +333,7 @@ function peersCard() {
     prev = t.pos;
     return gap + `<div class="prow${t.me ? " me" : ""}">
       <span class="pos">${t.pos}</span>
-      <div class="who"><div class="n">${esc(t.name)}</div><div class="m">${t.runners} marcheurs · ${ordF(t.rank)} au général</div></div>
+      <div class="who"><div class="n">${esc(t.name)}</div><div class="m">${act ? `${t.active} ont marché sur ${t.runners}` : `${t.runners} marcheurs`} · ${ordF(t.rank)} au général</div></div>
       <span class="r">${km(t.km)}<small> km</small></span>
       <span class="r tours">${int(t.laps)}<small> t</small></span>
       <span class="r">${km(t.per)}<small> km</small></span>
@@ -337,17 +348,20 @@ function peersCard() {
     : `<b>${plural(above.laps - mine.laps, "tour")}</b> derrière <b>${esc(above.name)}</b>`;
   return `
   <section class="card">
-    <div class="card-h"><div><h3>Face aux équipes de notre taille</h3><p>${n} équipes de ${P.lo} à ${P.hi} marcheurs inscrits · ${esc(CFG.team.label)} en compte ${mine.runners}</p></div>
-      <div class="seg" role="group" aria-label="Classer par"><button data-peersort="km" aria-pressed="${peerSort === "km"}">Total</button><button data-peersort="per" aria-pressed="${peerSort === "per"}">Par marcheur</button></div></div>
+    <div class="card-h"><div><h3>Face aux équipes de notre taille</h3><p>${n} équipes de ${P.lo} à ${P.hi} marcheurs ${act ? "ayant marché" : "inscrits"} · ${esc(CFG.team.label)} en compte ${size(mine)}</p></div>
+      <div class="segs">
+      ${hasActive() ? `<div class="seg" role="group" aria-label="Compter les marcheurs"><button data-peerbase="reg" aria-pressed="${!act}" title="Tous les inscrits, même ceux qui n'ont pas encore marché">Inscrits</button><button data-peerbase="act" aria-pressed="${act}" title="Seulement ceux qui ont fait au moins un tour">Ont marché</button></div>` : ""}
+      <div class="seg" role="group" aria-label="Classer par"><button data-peersort="km" aria-pressed="${peerSort === "km"}">Total</button><button data-peersort="per" aria-pressed="${peerSort === "per"}">Par marcheur</button></div></div></div>
     <div class="peer-sum">
-      <div><span class="num">${ordF(posKm)}</span><small>au total, sur ${n}</small>${rankMove(s => s.team?.peerRank)}</div>
-      <div><span class="num">${ordF(posPer)}</span><small>en km par marcheur (${km(mine.per)} km)</small>${rankMove(s => s.team?.peerRankPer)}</div>
+      <div><span class="num">${ordF(posKm)}</span><small>au total, sur ${n}</small>${rankMove(s => s.team?.[pk("peerRank")])}</div>
+      <div><span class="num">${ordF(posPer)}</span><small>en km par marcheur (${km(mine.per)} km)</small>${rankMove(s => s.team?.[pk("peerRankPer")])}</div>
       <div class="gap"><span class="arrow">${above ? "↑" : "★"}</span><span>${gapTxt}</span></div>
     </div>
     <div class="prows">
       <div class="prow head lbl"><span class="pos">#</span><span>Équipe</span><span class="r">Km</span><span class="r tours">Tours</span><span class="r">Km / marcheur</span></div>
       ${rows}
     </div>
+    ${act ? `<p class="muted note">Nombre de marcheurs ayant marché recompté toutes les heures pour les autres équipes${LATEST.peers.scanAt ? ` (dernier comptage à ${hhmm(LATEST.peers.scanAt)})` : ""}, à chaque relevé pour ${esc(CFG.team.label)}.</p>` : ""}
     ${!peersAll && show.length < n ? `<button class="more" id="peersMore">Voir les ${n} équipes</button>` : ""}
   </section>`;
 }
@@ -391,14 +405,15 @@ function goalCard(T) {
 
 /* ---------- évolution du classement ---------- */
 function rankCard() {
-  const hasPeers = HIST.some(s => s.team?.peerRank);
+  const hasPeers = HIST.some(s => s.team?.[pk("peerRank")]);
   if (!HIST.some(s => s.team?.rank)) return "";
   const v = hasPeers ? rankView : "g";
   const P = HIST.at(-1).team;
+  const nb = P[pk("peers")] ?? "", how = peerBase === "act" ? " (comptées en marcheurs ayant marché)" : "";
   const sub = v === "g" ? `Place parmi toutes les équipes, un point par relevé`
-    : v === "p" ? `Place parmi les ${P.peers ?? ""} équipes de notre taille, au total`
-    : `Place parmi les ${P.peers ?? ""} équipes de notre taille, en km par marcheur`;
-  const move = v === "g" ? rankMove(s => s.team?.rank) : v === "p" ? rankMove(s => s.team?.peerRank) : rankMove(s => s.team?.peerRankPer);
+    : v === "p" ? `Place parmi les ${nb} équipes de notre taille${how}, au total`
+    : `Place parmi les ${nb} équipes de notre taille${how}, en km par marcheur`;
+  const move = rankMove(rankGetter(v));
   return `
   <section class="card">
     <div class="card-h"><div><h3>Évolution du classement</h3><p>${sub} ${move}</p></div>
@@ -537,9 +552,12 @@ const dayLabels = () => days.map((d, i) => `J${i + 1} ${new Date(d + "T12:00:00Z
 function chart(id, cfg) { const el = document.getElementById(id); if (el) charts[id] = new Chart(el, cfg); }
 function killCharts() { for (const k in charts) { charts[k].destroy(); delete charts[k]; } }
 
+function rankGetter(v) {
+  return v === "g" ? s => s.team?.rank : v === "p" ? s => s.team?.[pk("peerRank")] : s => s.team?.[pk("peerRankPer")];
+}
 function drawRank() {
-  const v = HIST.some(s => s.team?.peerRank) ? rankView : "g";
-  const get = v === "g" ? s => s.team?.rank : v === "p" ? s => s.team?.peerRank : s => s.team?.peerRankPer;
+  const v = HIST.some(s => s.team?.[pk("peerRank")]) ? rankView : "g";
+  const get = rankGetter(v);
   const data = HIST.filter(s => get(s)).map(s => ({ x: +new Date(s.t), y: get(s) }));
   if (!data.length) return;
   const o = opts("time", "");
@@ -606,6 +624,7 @@ document.addEventListener("click", e => {
   const rh = e.target.closest("[data-rhythm]"); if (rh) { rhythm = rh.dataset.rhythm; render(true); return; }
   const ps = e.target.closest("[data-peersort]"); if (ps) { peerSort = ps.dataset.peersort; render(true); return; }
   if (e.target.id === "peersMore") { peersAll = true; render(true); return; }
+  const pb = e.target.closest("[data-peerbase]"); if (pb) { peerBase = pb.dataset.peerbase; render(true); return; }
   const rv = e.target.closest("[data-rankview]"); if (rv) { rankView = rv.dataset.rankview; render(true); return; }
   if (e.target.id === "more") { showAll = true; render(true); }
 });
