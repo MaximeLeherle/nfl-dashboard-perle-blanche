@@ -136,7 +136,7 @@ for (const r of roster.runners) {
 }
 
 // ---------- 4. classement des équipes ----------
-let team = null, eventTotals = null;
+let team = null, eventTotals = null, peers = null;
 try {
   const list = await api(`/customResults/list.php?event_id=${event.id}`);
   const ranking = list.find(x => /interorganisme/.test(x.type));
@@ -152,6 +152,14 @@ try {
   const pick = o => o && { name: o.organization, rank: o.rank, laps: o.total_laps, km: o.total_distance_km };
   const i = orgs.findIndex(o => norm(o.organization) === ORG);
   if (i >= 0) team = { ...pick(orgs[i]), runners: orgs[i].nb_runners_total, above: pick(orgs[i - 1]) ?? null, below: pick(orgs[i + 1]) ?? null };
+  // Équipes de taille comparable : ±pct % de marcheurs (au moins ±min), triées comme le classement général
+  if (i >= 0) {
+    const n = orgs[i].nb_runners_total, p = cfg.peers ?? {};
+    const w = Math.max(p.min ?? 2, Math.round(n * (p.pct ?? 25) / 100));
+    const lo = Math.max(1, n - w), hi = n + w;
+    peers = { lo, hi, teams: orgs.filter(o => o.nb_runners_total >= lo && o.nb_runners_total <= hi)
+      .map(o => ({ name: o.organization, rank: o.rank, runners: o.nb_runners_total, laps: o.total_laps, km: o.total_distance_km })) };
+  }
   eventTotals = {
     totalKm: +orgs.reduce((s, o) => s + (o.total_distance_km || 0), 0).toFixed(1),
     totalLaps: orgs.reduce((s, o) => s + (o.total_laps || 0), 0),
@@ -182,7 +190,7 @@ await mkdir(DATA, { recursive: true });
 await writeFile(path.join(DATA, "roster.json"), JSON.stringify(roster, null, 1) + "\n");
 // un relevé par ligne : des diffs git lisibles et un dépôt qui grossit peu
 await writeFile(path.join(DATA, "history.json"), "[\n" + history.map(s => JSON.stringify(s)).join(",\n") + "\n]\n");
-await writeFile(path.join(DATA, "latest.json"), JSON.stringify({ checkedAt: now.toISOString(), snapshotAt: history.at(-1).t, runners: roster.runners.length, errors, stats: runners }) + "\n");
+await writeFile(path.join(DATA, "latest.json"), JSON.stringify({ checkedAt: now.toISOString(), snapshotAt: history.at(-1).t, runners: roster.runners.length, errors, stats: runners, peers }) + "\n");
 
 const v = Object.values(runners);
 console.log(`Relevé ${changed ? "ajouté" : "identique au précédent (non ajouté)"} : ${v.length}/${roster.runners.length} marcheurs, ${v.filter(x => x.laps > 0).length} ont marché, équipe ${team.km} km${team.rank ? `, ${team.rank}e` : ""}${eventTotals ? `, événement ${eventTotals.totalKm} km` : ""}. ${errors.length} erreur(s).`);

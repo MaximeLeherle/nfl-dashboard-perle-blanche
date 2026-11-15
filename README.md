@@ -6,6 +6,7 @@ Site statique sur GitHub Pages, sans compte : tout le monde ouvre la même adres
 ## Ce qu'on y trouve
 
 - **Équipe** : total de km et de tours, classement parmi toutes les équipes avec l'écart en tours avec l'équipe devant et derrière, km du jour, marcheurs en piste, courbe des km cumulés, rythme par heure ou par jour, podium et liste des marcheurs (recherche, filtres).
+- **Face aux équipes de notre taille** : classement parmi les équipes qui ont à peu près autant de marcheurs inscrits (±25 %, au moins ±2, réglable dans `config.json` → `peers`), au total ou en km par marcheur.
 - **Fiche marcheur** (`#coureur-<dossard>`) : km, tours, classements général / catégorie / sexe, place dans l'équipe, progression et km par jour.
 - **Comparer** (`#comparer-<dossard>-<dossard>`) : deux marcheurs de l'équipe face à face.
 - **Suivre** : l'étoile garde des marcheurs en haut de page (mémorisé dans le navigateur de chacun).

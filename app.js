@@ -11,7 +11,7 @@ const ON_TRACK_MIN = 4 * SCRAPE_MIN + 2;
 let CFG, ROSTER, HIST, LATEST, TZ, LAP;
 let members = [], byBib = {}, days = [];
 let NOW = new Date();
-let filter = "all", query = "", showAll = false, rhythm = "h", follows = [];
+let filter = "all", query = "", showAll = false, rhythm = "h", follows = [], peerSort = "km", peersAll = false;
 const charts = {};
 
 /* ---------- utilitaires ---------- */
@@ -23,6 +23,9 @@ const int = n => (n ?? 0).toLocaleString("fr-FR");
 const ord = n => n === 1 ? "1er" : n + "e";
 const ordF = n => n === 1 ? "1re" : n + "e";
 const plural = (n, w) => `${n} ${w}${n > 1 ? "s" : ""}`;
+// 1 tour = LAP km exactement chez Sportips : on retrouve les tours à partir des km (totaux, par jour, par heure)
+const lapsOf = k => Math.round((k ?? 0) / LAP);
+const tours = k => plural(lapsOf(k), "tour");
 const hhmm = t => new Date(t).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: TZ }).replace(":", "h");
 const dayKey = t => new Intl.DateTimeFormat("fr-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(t));
 function tzParts(t) { return Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).formatToParts(new Date(t)).map(p => [p.type, p.value])); }
@@ -44,6 +47,7 @@ const store = {
   get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* stockage indisponible */ } },
 };
+const norm = s => String(s ?? "").normalize("NFD").replace(/\p{M}/gu, "").trim().toUpperCase().replace(/\s+/g, " ");
 const followKey = () => "nfl-follow-" + CFG.team.organization;
 
 /* ---------- chargement ---------- */
@@ -180,7 +184,7 @@ function renderFoot() {
 function followStrip() {
   const list = follows.map(b => byBib[b]).filter(Boolean);
   return `<div class="follow-strip"><span class="lbl">☆ Vos suivis</span>${list.length
-    ? list.map(m => `<a class="chip" href="#coureur-${m.bib}">${esc(m.first)} ${esc(m.last[0])}. <span class="num">${km(m.km)} km</span></a>`).join("")
+    ? list.map(m => `<a class="chip" href="#coureur-${m.bib}">${esc(m.first)} ${esc(m.last[0])}. <span class="num">${km(m.km)} km · ${m.laps} t</span></a>`).join("")
     : `<span class="muted">Touchez l'étoile d'un marcheur pour le garder ici. C'est mémorisé sur cet appareil, sans compte.</span>`}</div>`;
 }
 function toggleFollow(bib) {
@@ -227,11 +231,13 @@ function teamView() {
   </section>
 
   <section class="kpis">
-    <div class="kpi"><span class="lbl">Aujourd'hui</span><span class="num">${today == null ? "–" : km(today)} <small>km</small></span><p>${di >= 0 ? `Jour ${di + 1}, depuis minuit` : "en dehors des jours de course"}</p></div>
+    <div class="kpi"><span class="lbl">Aujourd'hui</span><span class="num">${today == null ? "–" : km(today)} <small>km</small></span><p>${di >= 0 ? `${today ? tours(today) + " · " : ""}Jour ${di + 1}, depuis minuit` : "en dehors des jours de course"}</p></div>
     <div class="kpi"><span class="lbl">En piste</span><span class="num">${onTrack.length} <small>/ ${n}</small></span><div class="meter"><i style="width:${n ? active.length / n * 100 : 0}%"></i></div><p>${active.length} ${active.length > 1 ? "ont" : "a"} marché au moins un tour</p></div>
-    <div class="kpi"><span class="lbl">Moyenne</span><span class="num">${km(active.length ? T.km / active.length : 0)} <small>km</small></span><p>par personne qui a marché</p></div>
+    <div class="kpi"><span class="lbl">Moyenne</span><span class="num">${km(active.length ? T.km / active.length : 0)} <small>km</small></span><p>${active.length ? `soit ${(T.laps / active.length).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} tours ` : ""}par personne qui a marché</p></div>
     <div class="kpi"><span class="lbl">Dernier tour</span><span class="num">${last ? ago(last, true) : "–"}</span><p>${last ? "vu au relevé de " + hhmm(last) : "aucun depuis le début du suivi"}</p></div>
   </section>
+
+  ${peersCard()}
 
   <section class="grid2">
     <div class="card">
@@ -264,13 +270,66 @@ function teamView() {
         <span class="pos">${m.pos ?? "–"}</span>
         <div class="who"><div class="n">${esc(m.name)}</div><div class="m">Dossard ${m.bib} · ${esc(m.cat)}</div></div>
         <div class="bar"><i style="width:${m.km / maxKm * 100}%"></i></div>
-        <span class="km num">${m.laps ? km(m.km) : "–"}</span>
+        <span class="km num">${m.laps ? km(m.km) : "–"}${m.laps ? `<small class="lt">${plural(m.laps, "tour")}</small>` : ""}</span>
         <span class="r tours">${m.laps || "–"}</span>
         <span class="r gen">${m.rank ? ord(m.rank) : "–"}</span>
         ${pill(m)}
       </a>`).join("") || `<p class="empty">Aucun marcheur ne correspond.</p>`}
     </div>
     ${total > rows.length ? `<button class="more" id="more">Afficher les ${total} marcheurs</button>` : ""}
+  </section>`;
+}
+
+/* ---------- équipes de même taille ---------- */
+// Classement parmi les équipes qui ont à peu près autant de marcheurs inscrits (tranche calculée par le relevé),
+// au total ou ramené au nombre de marcheurs (plus juste entre une équipe de 32 et une de 54).
+function peersCard() {
+  const P = LATEST?.peers;
+  if (!P?.teams?.length) return "";
+  const me = norm(CFG.team.organization);
+  const all = P.teams.map(t => ({ ...t, per: t.runners ? t.km / t.runners : 0, me: norm(t.name) === me }));
+  const byKm = [...all].sort((a, b) => b.laps - a.laps || b.km - a.km);
+  const byPer = [...all].sort((a, b) => b.per - a.per || b.km - a.km);
+  const list = peerSort === "per" ? byPer : byKm;
+  const i = list.findIndex(t => t.me);
+  if (i < 0) return "";
+  const mine = list[i], n = list.length;
+  const posKm = byKm.indexOf(mine) + 1, posPer = byPer.indexOf(mine) + 1;
+  // lignes montrées : le top 3 et les 3 équipes de part et d'autre de la nôtre (ou toutes)
+  const show = list.map((t, k) => ({ ...t, pos: k + 1 })).filter((t, k) => peersAll || k < 3 || Math.abs(k - i) <= 3);
+  let prev = 0;
+  const rows = show.map(t => {
+    const gap = t.pos - prev > 1 ? `<div class="prow gapline" aria-hidden="true">⋯</div>` : "";
+    prev = t.pos;
+    return gap + `<div class="prow${t.me ? " me" : ""}">
+      <span class="pos">${t.pos}</span>
+      <div class="who"><div class="n">${esc(t.name)}</div><div class="m">${t.runners} marcheurs · ${ordF(t.rank)} au général</div></div>
+      <span class="r">${km(t.km)}<small> km</small></span>
+      <span class="r tours">${int(t.laps)}<small> t</small></span>
+      <span class="r">${km(t.per)}<small> km</small></span>
+    </div>`;
+  }).join("");
+  const above = list[i - 1], below = list[i + 1];
+  const lead = !below ? "" : peerSort === "per" ? ` ${km(mine.per - below.per)} km par marcheur d'avance sur <b>${esc(below.name)}</b>.`
+    : ` ${plural(mine.laps - below.laps, "tour")} d'avance sur <b>${esc(below.name)}</b>.`;
+  const gapTxt = !above ? `<b>En tête des équipes de cette taille !</b>${lead}`
+    : peerSort === "per" ? `<b>${km(above.per - mine.per)} km par marcheur</b> derrière <b>${esc(above.name)}</b>`
+    : above.laps === mine.laps ? `À égalité de tours avec <b>${esc(above.name)}</b>`
+    : `<b>${plural(above.laps - mine.laps, "tour")}</b> derrière <b>${esc(above.name)}</b>`;
+  return `
+  <section class="card">
+    <div class="card-h"><div><h3>Face aux équipes de notre taille</h3><p>${n} équipes de ${P.lo} à ${P.hi} marcheurs inscrits · ${esc(CFG.team.label)} en compte ${mine.runners}</p></div>
+      <div class="seg" role="group" aria-label="Classer par"><button data-peersort="km" aria-pressed="${peerSort === "km"}">Total</button><button data-peersort="per" aria-pressed="${peerSort === "per"}">Par marcheur</button></div></div>
+    <div class="peer-sum">
+      <div><span class="num">${ordF(posKm)}</span><small>au total, sur ${n}</small></div>
+      <div><span class="num">${ordF(posPer)}</span><small>en km par marcheur (${km(mine.per)} km)</small></div>
+      <div class="gap"><span class="arrow">${above ? "↑" : "★"}</span><span>${gapTxt}</span></div>
+    </div>
+    <div class="prows">
+      <div class="prow head lbl"><span class="pos">#</span><span>Équipe</span><span class="r">Km</span><span class="r tours">Tours</span><span class="r">Km / marcheur</span></div>
+      ${rows}
+    </div>
+    ${!peersAll && show.length < n ? `<button class="more" id="peersMore">Voir les ${n} équipes</button>` : ""}
   </section>`;
 }
 
@@ -300,8 +359,8 @@ function runnerView(m) {
     <div><span class="num">${m.pos ?? "–"}<small style="font-size:15px"> / ${n}</small></span><small>dans l'équipe</small></div>
   </section>
   <section class="kpis">
-    <div class="kpi"><span class="lbl">Aujourd'hui</span><span class="num">${di >= 0 && d[di] != null ? km(d[di]) : "–"} <small>km</small></span><p>${di >= 0 ? `Jour ${di + 1}` : "hors course"}</p></div>
-    <div class="kpi"><span class="lbl">Meilleure journée</span><span class="num">${best.v ? km(best.v) : "–"} <small>km</small></span><p>${best.v ? `Jour ${best.i + 1}` : "pas encore"}</p></div>
+    <div class="kpi"><span class="lbl">Aujourd'hui</span><span class="num">${di >= 0 && d[di] != null ? km(d[di]) : "–"} <small>km</small></span><p>${di >= 0 ? `${d[di] ? tours(d[di]) + " · " : ""}Jour ${di + 1}` : "hors course"}</p></div>
+    <div class="kpi"><span class="lbl">Meilleure journée</span><span class="num">${best.v ? km(best.v) : "–"} <small>km</small></span><p>${best.v ? `${tours(best.v)} · Jour ${best.i + 1}` : "pas encore"}</p></div>
     <div class="kpi"><span class="lbl">Part de l'équipe</span><span class="num">${HIST.at(-1).team.km ? Math.round(m.km / HIST.at(-1).team.km * 100) : 0} <small>%</small></span><p>des km de ${esc(CFG.team.label)}</p></div>
     <div class="kpi"><span class="lbl">Dernier tour</span><span class="num">${m.lastLap ? ago(m.lastLap, true) : "–"}</span><p>${m.lastLap ? "vu au relevé de " + hhmm(m.lastLap) : m.laps ? "avant le début du suivi" : "pas encore de tour"}</p></div>
   </section>
@@ -316,12 +375,13 @@ function compareView(a, b) {
   const opts = sel => [...members].sort((x, y) => x.last.localeCompare(y.last, "fr")).map(m => `<option value="${m.bib}" ${m.bib === sel ? "selected" : ""}>${esc(m.name)}${m.laps ? " · " + km(m.km) + " km" : ""}</option>`).join("");
   const da = daily(s => runnerKm(s, a.bib)), db = daily(s => runnerKm(s, b.bib)), di = days.indexOf(dayKey(NOW));
   const bestOf = d => Math.max(0, ...d.filter(v => v != null));
+  const kmT = v => v ? `${km(v)} km<small> · ${lapsOf(v)} t</small>` : "–";
   const rows = [
     ["Kilomètres", a.km, b.km, km, "max"],
     ["Tours", a.laps, b.laps, int, "max"],
     ["Classement général", a.rank, b.rank, v => v ? ord(v) : "–", "min"],
-    ["Aujourd'hui (km)", di >= 0 ? da[di] : 0, di >= 0 ? db[di] : 0, km, "max"],
-    ["Meilleure journée (km)", bestOf(da), bestOf(db), km, "max"],
+    ["Aujourd'hui", di >= 0 ? da[di] : 0, di >= 0 ? db[di] : 0, kmT, "max"],
+    ["Meilleure journée", bestOf(da), bestOf(db), kmT, "max"],
     ["Dernier tour", a.lastLap ? +new Date(a.lastLap) : 0, b.lastLap ? +new Date(b.lastLap) : 0, v => v ? ago(v, true) : "–", "max"],
   ];
   const diff = +(a.km - b.km).toFixed(2), lapsDiff = a.laps - b.laps;
@@ -380,7 +440,7 @@ function opts(kind, unit = "km") {
         padding: 10, boxPadding: 4, usePointStyle: true, titleFont: { family: "Inter", weight: "600" }, bodyFont: { family: "Inter" },
         callbacks: {
           title: it => kind === "time" ? new Date(it[0].parsed.x).toLocaleString("fr-FR", { weekday: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: TZ }) : it[0].label,
-          label: c => c.parsed.y == null ? " à venir" : ` ${c.chart.data.datasets.length > 1 ? c.dataset.label + " : " : ""}${km(c.parsed.y)} ${unit}`,
+          label: c => c.parsed.y == null ? " à venir" : ` ${c.chart.data.datasets.length > 1 ? c.dataset.label + " : " : ""}${km(c.parsed.y)} ${unit}${unit === "km" ? " · " + tours(c.parsed.y) : ""}`,
         },
       },
     },
@@ -458,6 +518,8 @@ document.addEventListener("click", e => {
   if (star) { e.preventDefault(); e.stopPropagation(); toggleFollow(star.dataset.star); return; }
   const f = e.target.closest("[data-filter]"); if (f) { filter = f.dataset.filter; render(true); return; }
   const rh = e.target.closest("[data-rhythm]"); if (rh) { rhythm = rh.dataset.rhythm; render(true); return; }
+  const ps = e.target.closest("[data-peersort]"); if (ps) { peerSort = ps.dataset.peersort; render(true); return; }
+  if (e.target.id === "peersMore") { peersAll = true; render(true); return; }
   if (e.target.id === "more") { showAll = true; render(true); }
 });
 document.addEventListener("change", e => {

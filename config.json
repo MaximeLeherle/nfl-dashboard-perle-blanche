@@ -18,5 +18,6 @@
   },
   "extraRunners": [],
   "excludeBibs": [],
-  "rosterRefreshHours": 24
+  "rosterRefreshHours": 24,
+  "peers": { "pct": 25, "min": 2 }
 }
