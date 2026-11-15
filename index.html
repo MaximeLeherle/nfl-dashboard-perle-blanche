@@ -63,6 +63,8 @@ header.top .wrap{display:flex;flex-wrap:wrap;align-items:center;gap:14px 24px;pa
 .brand h1{font-size:22px;line-height:1.05}
 .brand small{display:block;color:var(--ink-3);font-size:12.5px;font-family:var(--text)}
 .live{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2);margin-left:auto}
+#updated{border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:left}
+#updated::after{content:" ↻";color:var(--ink-3)}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--good);animation:pulse 2s infinite;flex:none}
 .dot.idle{background:var(--ink-3);animation:none}
 @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--good) 60%,transparent)}70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
@@ -266,7 +268,7 @@ footer b{color:var(--ink-2);font-weight:600}
 
 <header class="top"><div class="wrap">
   <div class="brand"><span class="bib">NFL·26</span><div><h1 id="evName">No Finish Line Monaco</h1><small id="evSub"></small></div></div>
-  <div class="live"><span class="dot" id="liveDot" aria-hidden="true"></span><span id="updated">Chargement…</span></div>
+  <div class="live"><span class="dot" id="liveDot" aria-hidden="true"></span><button type="button" id="updated" title="Toucher pour actualiser">Chargement…</button></div>
   <div class="days"><b id="dayLabel"></b><div class="days-track" id="dayTrack" aria-hidden="true"></div><em id="dayLeft"></em></div>
 </div></header>
 
@@ -277,6 +279,9 @@ footer b{color:var(--ink-2);font-weight:600}
 <footer><div class="wrap" id="foot"></div></footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="app.js"></script>
+<script>
+  // app.js toujours frais : sur l'écran d'accueil iOS, une copie en cache peut sinon rester longtemps
+  (function () { var s = document.createElement("script"); s.src = "app.js?v=" + Math.floor(Date.now() / 60000); document.body.appendChild(s); })();
+</script>
 </body>
 </html>

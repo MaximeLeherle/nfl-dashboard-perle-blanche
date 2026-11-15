@@ -642,13 +642,44 @@ document.addEventListener("input", e => {
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => render(true));
 new MutationObserver(() => render(true)).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
+/* ---------- mises à jour du site lui-même ----------
+   Ouvert depuis l'écran d'accueil d'un iPhone, le site n'a ni bouton « recharger » ni « tirer pour actualiser »,
+   et iOS reprend la page déjà ouverte au lieu de la recharger : les données se mettent à jour, mais pas le code.
+   Donc : rechargement complet si le site a changé (app.js ou index.html), si la page est restée longtemps
+   en arrière-plan, ou si on touche « relevé il y a… ». */
+let codeTag = null, hiddenAt = 0;
+async function siteTag() {
+  try {
+    const tags = await Promise.all(["app.js", "index.html"].map(async f => {
+      const r = await fetch(f + "?v=" + Date.now(), { method: "HEAD", cache: "no-store" });
+      return r.ok ? (r.headers.get("etag") || r.headers.get("last-modified") || "") : "";
+    }));
+    return tags.every(Boolean) ? tags.join("|") : null;
+  } catch { return null; }
+}
+async function hardReload() {
+  // remplace les copies en cache avant de recharger (sinon iOS peut resservir l'ancien code)
+  try { await Promise.all(["./", "index.html", "app.js"].map(f => fetch(f, { cache: "reload" }))); } catch { /* hors ligne */ }
+  location.reload();
+}
 async function refresh() {
   if (document.activeElement?.id === "q") return; // ne pas interrompre une saisie
+  const tag = await siteTag();
+  if (tag && codeTag && tag !== codeTag) return hardReload(); // nouvelle version du site
+  if (tag) codeTag = tag;
   try { await load(); render(true); } catch (e) { console.error(e); }
 }
 (async () => {
   try { await load(); render(); }
   catch (e) { console.error(e); $("#view").innerHTML = `<p class="empty">Impossible de charger les données (${esc(e.message)}).</p>`; }
+  codeTag = await siteTag();
   setInterval(refresh, REFRESH_MS);
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) { hiddenAt = Date.now(); return; }
+    if (hiddenAt && Date.now() - hiddenAt > 30 * 60e3) hardReload(); // revenu après plus de 30 min : on repart de zéro
+    else refresh();
+  });
+  // pageshow : retour sur une page gardée en mémoire par Safari
+  addEventListener("pageshow", e => { if (e.persisted) refresh(); });
+  $("#updated").addEventListener("click", hardReload);
 })();
