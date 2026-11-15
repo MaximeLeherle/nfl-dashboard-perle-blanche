@@ -11,7 +11,7 @@ const ON_TRACK_MIN = 4 * SCRAPE_MIN + 2;
 let CFG, ROSTER, HIST, LATEST, TZ, LAP;
 let members = [], byBib = {}, days = [];
 let NOW = new Date();
-let filter = "all", query = "", showAll = false, rhythm = "h", follows = [], peerSort = "km", peersAll = false;
+let filter = "all", query = "", showAll = false, rhythm = "h", follows = [], peerSort = "km", peersAll = false, rankView = "g";
 const charts = {};
 
 /* ---------- utilitaires ---------- */
@@ -121,6 +121,21 @@ function hourly(fn) {
   }
   return [...out].map(([k, v]) => ({ label: +k.slice(-2) + "h", y: +v.toFixed(1) }));
 }
+// Évolution d'une place depuis le premier relevé du jour (ou du suivi, le premier jour)
+function rankMove(get) {
+  const cur = get(HIST.at(-1));
+  if (!cur) return "";
+  const today = dayKey(NOW);
+  const ref = HIST.find(s => dayKey(s.t) === today && get(s)) ?? null;
+  const first = HIST.find(s => get(s));
+  const from = ref ?? first, since = ref && ref !== first ? "depuis minuit" : "depuis le début du suivi";
+  if (!from || from === HIST.at(-1)) return "";
+  const d = get(from) - cur; // positif = on a gagné des places
+  return d > 0 ? `<span class="move up">▲ ${plural(d, "place")} ${since}</span>`
+    : d < 0 ? `<span class="move down">▼ ${plural(-d, "place")} ${since}</span>`
+    : `<span class="move">= même place ${since}</span>`;
+}
+
 function state(m) {
   if (!m.laps) return { k: "off", t: m.sex === "F" ? "Pas encore partie" : "Pas encore parti" };
   // compté depuis le dernier relevé, pas depuis maintenant : un robot en retard ne met pas tout le monde en pause.
@@ -223,7 +238,7 @@ function teamView() {
     </div>
     <div class="panel">
       <span class="lbl">Classement des équipes</span>
-      ${T.rank ? `<div class="rankline"><span class="num">${ordF(T.rank)}</span><span>sur ${int(S.event?.teams)} équipes</span></div>
+      ${T.rank ? `<div class="rankline"><span class="num">${ordF(T.rank)}</span><span>sur ${int(S.event?.teams)} équipes</span>${rankMove(s => s.team?.rank)}</div>
       ${T.above ? `<div class="gap"><span class="arrow">↑</span><span>${gapTxt(T.above.laps - T.laps, T.above, "up")}</span></div>` : `<div class="gap"><span class="arrow">★</span><span><b>En tête du classement !</b></span></div>`}
       ${T.below ? `<div class="gap"><span class="arrow">↓</span><span>${gapTxt(T.laps - T.below.laps, T.below, "down")}</span></div>` : ""}`
       : `<span class="muted">Classement des équipes indisponible pour le moment.</span>`}
@@ -237,7 +252,11 @@ function teamView() {
     <div class="kpi"><span class="lbl">Dernier tour</span><span class="num">${last ? ago(last, true) : "–"}</span><p>${last ? "vu au relevé de " + hhmm(last) : "aucun depuis le début du suivi"}</p></div>
   </section>
 
+  ${goalCard(T)}
+
   ${peersCard()}
+
+  ${rankCard()}
 
   <section class="grid2">
     <div class="card">
@@ -321,8 +340,8 @@ function peersCard() {
     <div class="card-h"><div><h3>Face aux équipes de notre taille</h3><p>${n} équipes de ${P.lo} à ${P.hi} marcheurs inscrits · ${esc(CFG.team.label)} en compte ${mine.runners}</p></div>
       <div class="seg" role="group" aria-label="Classer par"><button data-peersort="km" aria-pressed="${peerSort === "km"}">Total</button><button data-peersort="per" aria-pressed="${peerSort === "per"}">Par marcheur</button></div></div>
     <div class="peer-sum">
-      <div><span class="num">${ordF(posKm)}</span><small>au total, sur ${n}</small></div>
-      <div><span class="num">${ordF(posPer)}</span><small>en km par marcheur (${km(mine.per)} km)</small></div>
+      <div><span class="num">${ordF(posKm)}</span><small>au total, sur ${n}</small>${rankMove(s => s.team?.peerRank)}</div>
+      <div><span class="num">${ordF(posPer)}</span><small>en km par marcheur (${km(mine.per)} km)</small>${rankMove(s => s.team?.peerRankPer)}</div>
       <div class="gap"><span class="arrow">${above ? "↑" : "★"}</span><span>${gapTxt}</span></div>
     </div>
     <div class="prows">
@@ -330,6 +349,61 @@ function peersCard() {
       ${rows}
     </div>
     ${!peersAll && show.length < n ? `<button class="more" id="peersMore">Voir les ${n} équipes</button>` : ""}
+  </section>`;
+}
+
+/* ---------- objectif d'équipe ---------- */
+// Rythme des dernières 24 h (journée et nuit comprises), ou depuis le début du suivi s'il dure moins de 24 h
+function pacePerDay() {
+  const last = HIST.at(-1), t1 = +new Date(last.t);
+  const from = HIST.find(s => +new Date(s.t) >= t1 - 864e5) ?? HIST[0];
+  const dt = t1 - new Date(from.t);
+  if (dt < 3 * 36e5) return null; // trop court pour être parlant
+  return (teamKm(last) - teamKm(from)) / dt * 864e5;
+}
+function goalCard(T) {
+  const goal = CFG.team.goalKm;
+  if (!goal) return "";
+  const done = T.km, pct = Math.min(100, done / goal * 100), left = Math.max(0, goal - done);
+  const end = new Date(CFG.event.end), msLeft = Math.max(0, end - NOW), daysLeft = msLeft / 864e5;
+  const pace = pacePerDay();
+  const dateFr = t => new Date(t).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: TZ });
+  let line1, line2 = "";
+  if (!left) {
+    line1 = `<b>Objectif atteint !</b> ${km(done - goal)} km de plus que prévu.`;
+  } else {
+    line1 = `Encore <b>${int(Math.ceil(left))} km</b>, soit <b>${int(Math.ceil(left / LAP))} tours</b>${daysLeft > 0 ? `, environ <b>${int(Math.ceil(left / Math.max(daysLeft, 1 / 24)))} km par jour</b> d'ici la fin` : ""}.`;
+    if (pace && daysLeft > 0) {
+      const eta = +NOW + left / pace * 864e5;
+      line2 = eta <= +end
+        ? `Au rythme des dernières 24 h (${int(Math.round(pace))} km par jour), objectif atteint vers le <b>${dateFr(eta)}</b>.`
+        : `Au rythme des dernières 24 h (${int(Math.round(pace))} km par jour), l'équipe finirait vers <b>${int(Math.round(done + pace * daysLeft))} km</b> : il faut accélérer !`;
+    }
+  }
+  return `
+  <section class="card goal">
+    <div class="goal-h"><span class="lbl">Objectif de l'équipe</span><span class="num">${int(goal)} <small>km</small></span></div>
+    <div class="goal-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${goal}" aria-valuenow="${Math.round(done)}" aria-label="Progression vers l'objectif"><i style="width:${pct}%"></i></div>
+    <div class="goal-legend"><span><b>${km(done)} km</b> · ${Math.floor(pct)} %</span><span>${int(goal)} km</span></div>
+    <p>${line1}</p>${line2 ? `<p class="muted">${line2}</p>` : ""}
+  </section>`;
+}
+
+/* ---------- évolution du classement ---------- */
+function rankCard() {
+  const hasPeers = HIST.some(s => s.team?.peerRank);
+  if (!HIST.some(s => s.team?.rank)) return "";
+  const v = hasPeers ? rankView : "g";
+  const P = HIST.at(-1).team;
+  const sub = v === "g" ? `Place parmi toutes les équipes, un point par relevé`
+    : v === "p" ? `Place parmi les ${P.peers ?? ""} équipes de notre taille, au total`
+    : `Place parmi les ${P.peers ?? ""} équipes de notre taille, en km par marcheur`;
+  const move = v === "g" ? rankMove(s => s.team?.rank) : v === "p" ? rankMove(s => s.team?.peerRank) : rankMove(s => s.team?.peerRankPer);
+  return `
+  <section class="card">
+    <div class="card-h"><div><h3>Évolution du classement</h3><p>${sub} ${move}</p></div>
+      ${hasPeers ? `<div class="seg" role="group" aria-label="Classement"><button data-rankview="g" aria-pressed="${v === "g"}">Général</button><button data-rankview="p" aria-pressed="${v === "p"}">Même taille</button><button data-rankview="pp" aria-pressed="${v === "pp"}">Par marcheur</button></div>` : ""}</div>
+    <div class="chart sm"><canvas id="cRank" role="img" aria-label="Évolution du classement de l'équipe"></canvas></div>
   </section>`;
 }
 
@@ -463,7 +537,19 @@ const dayLabels = () => days.map((d, i) => `J${i + 1} ${new Date(d + "T12:00:00Z
 function chart(id, cfg) { const el = document.getElementById(id); if (el) charts[id] = new Chart(el, cfg); }
 function killCharts() { for (const k in charts) { charts[k].destroy(); delete charts[k]; } }
 
+function drawRank() {
+  const v = HIST.some(s => s.team?.peerRank) ? rankView : "g";
+  const get = v === "g" ? s => s.team?.rank : v === "p" ? s => s.team?.peerRank : s => s.team?.peerRankPer;
+  const data = HIST.filter(s => get(s)).map(s => ({ x: +new Date(s.t), y: get(s) }));
+  if (!data.length) return;
+  const o = opts("time", "");
+  o.scales.y = { ...o.scales.y, reverse: true, beginAtZero: false, suggestedMin: 1,
+    ticks: { ...o.scales.y.ticks, precision: 0, callback: x => Number.isInteger(x) && x > 0 ? ordF(x) : "" } };
+  o.plugins.tooltip.callbacks.label = c => ` ${ordF(c.parsed.y)}`;
+  chart("cRank", { type: "line", data: { datasets: [{ ...line(CFG.team.label, data, "--team", false), stepped: true }] }, options: o });
+}
 function drawTeam() {
+  drawRank();
   chart("cCum", { type: "line", data: { datasets: [line(CFG.team.label, series(teamKm), "--team", true)] }, options: opts("time") });
   if (rhythm === "h") {
     const h = hourly(teamKm);
@@ -520,6 +606,7 @@ document.addEventListener("click", e => {
   const rh = e.target.closest("[data-rhythm]"); if (rh) { rhythm = rh.dataset.rhythm; render(true); return; }
   const ps = e.target.closest("[data-peersort]"); if (ps) { peerSort = ps.dataset.peersort; render(true); return; }
   if (e.target.id === "peersMore") { peersAll = true; render(true); return; }
+  const rv = e.target.closest("[data-rankview]"); if (rv) { rankView = rv.dataset.rankview; render(true); return; }
   if (e.target.id === "more") { showAll = true; render(true); }
 });
 document.addEventListener("change", e => {

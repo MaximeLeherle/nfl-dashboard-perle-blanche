@@ -180,8 +180,17 @@ if (!team) {
 // Dans l'historique : seulement les marcheurs qui ont marché, et seulement tours + km (les courbes).
 // Les classements du moment sont dans latest.json. Un relevé toutes les 5 min : il faut rester léger.
 const slim = Object.fromEntries(Object.entries(runners).filter(([, v]) => v.laps > 0).map(([b, v]) => [b, { laps: v.laps, km: v.km }]));
+// Places dans la tranche « même taille » (même tri que le site), pour suivre leur évolution
+if (team && peers) {
+  const mine = t => norm(t.name) === ORG;
+  const byLaps = [...peers.teams].sort((a, b) => b.laps - a.laps || b.km - a.km);
+  const byPer = [...peers.teams].sort((a, b) => b.km / b.runners - a.km / a.runners || b.km - a.km);
+  team.peers = peers.teams.length;
+  team.peerRank = byLaps.findIndex(mine) + 1 || null;
+  team.peerRankPer = byPer.findIndex(mine) + 1 || null;
+}
 const snapshot = { t: now.toISOString(), event: eventTotals, team, runners: slim };
-const compact = s => JSON.stringify({ team: { laps: s.team?.laps, rank: s.team?.rank }, runners: Object.fromEntries(Object.entries(s.runners).map(([b, v]) => [b, v.laps])) });
+const compact = s => JSON.stringify({ team: { laps: s.team?.laps, rank: s.team?.rank, p: s.team?.peerRank, pp: s.team?.peerRankPer }, runners: Object.fromEntries(Object.entries(s.runners).map(([b, v]) => [b, v.laps])) });
 const last = history.at(-1);
 const changed = !last || compact(last) !== compact(snapshot);
 if (changed) history.push(snapshot);
