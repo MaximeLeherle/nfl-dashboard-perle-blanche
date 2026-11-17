@@ -1,5 +1,5 @@
 {
- "updatedAt": "2026-11-17T11:47:00.539Z",
+ "updatedAt": "2026-11-17T12:47:01.579Z",
  "eventId": 101,
  "races": [
   {
@@ -19,8 +19,16 @@
    "name": "Course 12 H SOLO"
   },
   {
+   "id": 522,
+   "name": "Course 12 H RELAIS"
+  },
+  {
    "id": 523,
    "name": "TROPHEE 24 H SOLO"
+  },
+  {
+   "id": 524,
+   "name": "TROPHEE 24 H RELAIS"
   },
   {
    "id": 525,
@@ -35,9 +43,9 @@
    "last": "Leherle",
    "sex": "F",
    "cat": "SE",
-   "nbCat": 1633,
-   "nbSex": 3750,
-   "nbTotal": 7083
+   "nbCat": 1701,
+   "nbSex": 3865,
+   "nbTotal": 7266
   },
   {
    "bib": 4304,
@@ -46,9 +54,9 @@
    "last": "Leherle",
    "sex": "F",
    "cat": "M4",
-   "nbCat": 632,
-   "nbSex": 3750,
-   "nbTotal": 7081
+   "nbCat": 648,
+   "nbSex": 3865,
+   "nbTotal": 7266
   },
   {
    "bib": 6221,
@@ -57,9 +65,9 @@
    "last": "Monnot",
    "sex": "M",
    "cat": "SE",
-   "nbCat": 1631,
-   "nbSex": 3331,
-   "nbTotal": 7081
+   "nbCat": 1701,
+   "nbSex": 3401,
+   "nbTotal": 7266
   },
   {
    "bib": 12638,
@@ -68,9 +76,9 @@
    "last": "Nguyen",
    "sex": "F",
    "cat": "SE",
-   "nbCat": 1632,
-   "nbSex": 3750,
-   "nbTotal": 7082
+   "nbCat": 1701,
+   "nbSex": 3865,
+   "nbTotal": 7266
   },
   {
    "bib": 6218,
@@ -79,9 +87,9 @@
    "last": "Petit",
    "sex": "F",
    "cat": "M3",
-   "nbCat": 713,
-   "nbSex": 3750,
-   "nbTotal": 7082
+   "nbCat": 734,
+   "nbSex": 3865,
+   "nbTotal": 7266
   },
   {
    "bib": 6219,
@@ -90,9 +98,9 @@
    "last": "Piguet",
    "sex": "F",
    "cat": "M3",
-   "nbCat": 713,
-   "nbSex": 3750,
-   "nbTotal": 7081
+   "nbCat": 734,
+   "nbSex": 3865,
+   "nbTotal": 7266
   }
  ]
 }
