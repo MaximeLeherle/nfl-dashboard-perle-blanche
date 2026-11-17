@@ -1,5 +1,5 @@
 {
- "updatedAt": "2026-11-17T21:02:51.164Z",
+ "updatedAt": "2026-11-17T22:02:51.198Z",
  "eventId": 101,
  "races": [
   {
@@ -43,9 +43,9 @@
    "last": "Leherle",
    "sex": "F",
    "cat": "SE",
-   "nbCat": 1887,
-   "nbSex": 4221,
-   "nbTotal": 7946
+   "nbCat": 1889,
+   "nbSex": 4223,
+   "nbTotal": 7953
   },
   {
    "bib": 4304,
@@ -54,9 +54,9 @@
    "last": "Leherle",
    "sex": "F",
    "cat": "M4",
-   "nbCat": 687,
-   "nbSex": 4221,
-   "nbTotal": 7946
+   "nbCat": 688,
+   "nbSex": 4223,
+   "nbTotal": 7953
   },
   {
    "bib": 6221,
@@ -65,9 +65,9 @@
    "last": "Monnot",
    "sex": "M",
    "cat": "SE",
-   "nbCat": 1887,
-   "nbSex": 3725,
-   "nbTotal": 7946
+   "nbCat": 1889,
+   "nbSex": 3730,
+   "nbTotal": 7953
   },
   {
    "bib": 12638,
@@ -76,9 +76,9 @@
    "last": "Nguyen",
    "sex": "F",
    "cat": "SE",
-   "nbCat": 1887,
-   "nbSex": 4221,
-   "nbTotal": 7946
+   "nbCat": 1889,
+   "nbSex": 4223,
+   "nbTotal": 7953
   },
   {
    "bib": 6218,
@@ -88,8 +88,8 @@
    "sex": "F",
    "cat": "M3",
    "nbCat": 781,
-   "nbSex": 4221,
-   "nbTotal": 7946
+   "nbSex": 4223,
+   "nbTotal": 7953
   },
   {
    "bib": 6219,
@@ -99,8 +99,8 @@
    "sex": "F",
    "cat": "M3",
    "nbCat": 781,
-   "nbSex": 4221,
-   "nbTotal": 7946
+   "nbSex": 4223,
+   "nbTotal": 7953
   }
  ]
 }
