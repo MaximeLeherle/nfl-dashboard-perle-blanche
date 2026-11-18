@@ -25,6 +25,7 @@ const now = new Date();
 function norm(s) { return String(s ?? "").normalize("NFD").replace(/\p{M}/gu, "").trim().toUpperCase().replace(/\s+/g, " "); }
 function cap(s) { return String(s ?? "").toLowerCase().replace(/(^|[\s\-'’])(\p{L})/gu, (m, a, b) => a + b.toUpperCase()); }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+const extra = new Set((cfg.extraRunners ?? []).map(Number));
 const isTeam = r => [r.organization, r.club, r.team_name].some(v => norm(v) === ORG);
 
 async function api(route, body, tries = 3) {
@@ -92,7 +93,6 @@ if (!roster || scanAge >= (cfg.scanMinutes ?? 60) || process.env.REFRESH_ROSTER)
   try {
     const active = {};
     const races = (await api("/races/get.php", { event_id: event.id, with_count_runners: true })).filter(r => r.count_runners > 0);
-    const extra = new Set((cfg.extraRunners ?? []).map(Number));
     const found = new Map();
     for (const race of races) {
       let page = 1, last = 1;
@@ -108,6 +108,10 @@ if (!roster || scanAge >= (cfg.scanMinutes ?? 60) || process.env.REFRESH_ROSTER)
       } while (page <= last);
       console.log(`  ${race.name} : ${last} page(s)`);
     }
+    // Le classement bouge pendant le parcours (≈ 85 pages triées par rang) : un marcheur peut changer de page
+    // entre deux appels et passer à travers. Un marcheur déjà connu reste donc dans la liste ; il n'en sort que
+    // si l'appel par dossard (étape 3) montre qu'il n'est plus dans l'équipe.
+    for (const r of roster?.runners ?? []) if (!found.has(r.bib)) { found.set(r.bib, r); console.log(`  ${r.first} ${r.last} (${r.bib}) non vu pendant le parcours : gardé`); }
     const exclude = new Set((cfg.excludeBibs ?? []).map(Number));
     const runners = [...found.values()].filter(r => !exclude.has(r.bib)).sort((a, b) => a.last.localeCompare(b.last, "fr") || a.first.localeCompare(b.first, "fr"));
     if (!runners.length) throw new Error(`aucun marcheur trouvé pour « ${cfg.team.organization} »`);
@@ -127,6 +131,7 @@ const history = await readJson("history.json", []);
 const prev = (await readJson("latest.json", {})).stats ?? {};
 const runners = {};
 const errors = [];
+const left = new Set();
 for (const r of roster.runners) {
   try {
     let row = fresh.get(r.bib);
@@ -134,6 +139,7 @@ for (const r of roster.runners) {
       const d = await api("/results/get.php", { id_race: r.race, search_terms: String(r.bib), page: 1, limit: 10 });
       row = (d.runners ?? []).find(x => x.bib === r.bib);
       if (!row) throw new Error("dossard introuvable dans la course " + r.race);
+      if (!isTeam(row) && !extra.has(r.bib)) { left.add(r.bib); console.log(`${r.first} ${r.last} (${r.bib}) n'est plus dans l'équipe : retiré`); continue; }
     }
     runners[r.bib] = runnerStats(row);
   } catch (e) {
@@ -142,6 +148,8 @@ for (const r of roster.runners) {
     if (prev[r.bib]) runners[r.bib] = prev[r.bib]; // on garde la dernière valeur connue
   }
 }
+
+if (left.size) roster.runners = roster.runners.filter(r => !left.has(r.bib));
 
 // ---------- 4. classement des équipes ----------
 let team = null, eventTotals = null, peers = null;

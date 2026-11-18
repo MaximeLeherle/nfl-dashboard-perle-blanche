@@ -62,7 +62,7 @@ async function getJson(url) {
 async function load() {
   const [cfg, roster, history, latest] = await Promise.all(["config.json", "data/roster.json", "data/history.json", "data/latest.json"].map(getJson));
   if (!cfg) throw new Error("config.json introuvable");
-  CFG = cfg; ROSTER = roster; HIST = (history ?? []).sort((a, b) => a.t.localeCompare(b.t)); LATEST = latest;
+  CFG = cfg; ROSTER = roster; HIST = fillGaps((history ?? []).sort((a, b) => a.t.localeCompare(b.t))); LATEST = latest;
   TZ = CFG.event.timezone || "Europe/Paris"; LAP = CFG.event.lapKm || 1;
   NOW = new Date();
   // équipe et couleurs depuis la config
@@ -89,6 +89,16 @@ async function load() {
 }
 
 /* ---------- calculs à partir des relevés ---------- */
+// Un marcheur absent d'un relevé (recherche des marcheurs incomplète, appel en échec) garde sa dernière valeur
+// connue : sans ça sa courbe retombe à 0 puis remonte.
+function fillGaps(hist) {
+  let prev = {};
+  for (const s of hist) {
+    s.runners = { ...prev, ...(s.runners ?? {}) };
+    prev = s.runners;
+  }
+  return hist;
+}
 const runnerKm = (s, bib) => s.runners?.[bib]?.km ?? 0;
 const teamKm = s => s.team?.km ?? Object.values(s.runners ?? {}).reduce((a, v) => a + (v.km || 0), 0);
 // heure du relevé où le dernier tour est apparu (null s'il date d'avant le premier relevé)
