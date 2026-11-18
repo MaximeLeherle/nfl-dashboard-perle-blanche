@@ -17,6 +17,10 @@ const charts = {};
 /* ---------- utilitaires ---------- */
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+// minuscules sans accents : « anais » trouve « Anaïs »
+const fold = s => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+// prénom seul, ou prénom + nom quand les deux marcheurs comparés ont le même prénom
+const pairNames = (a, b) => fold(a.first) === fold(b.first) ? [a.name, b.name] : [a.first, b.first];
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const km = n => (n ?? 0).toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const int = n => (n ?? 0).toLocaleString("fr-FR");
@@ -221,9 +225,9 @@ function teamView() {
     : `<b>${plural(g, "tour")}</b> d'avance sur <b>${esc(o.name)}</b> (${ordF(o.rank)})`;
 
   const counts = { all: n, on: onTrack.length, ran: active.length, off: n - active.length };
-  const q = query.trim().toLowerCase();
+  const q = fold(query.trim());
   let rows = members.filter(m => filter === "all" || (filter === "on" ? state(m).k === "on" : filter === "ran" ? m.laps > 0 : m.laps === 0))
-    .filter(m => !q || `${m.first} ${m.last} ${m.bib}`.toLowerCase().includes(q));
+    .filter(m => !q || fold(`${m.first} ${m.last} ${m.bib}`).includes(q));
   const total = rows.length;
   if (!showAll && !q) rows = rows.slice(0, 15);
   const maxKm = Math.max(members[0]?.km || 0, 0.1);
@@ -474,8 +478,9 @@ function compareView(a, b) {
     ["Dernier tour", a.lastLap ? +new Date(a.lastLap) : 0, b.lastLap ? +new Date(b.lastLap) : 0, v => v ? ago(v, true) : "–", "max"],
   ];
   const diff = +(a.km - b.km).toFixed(2), lapsDiff = a.laps - b.laps;
-  const lead = diff === 0 ? `<b>${esc(a.first)}</b> et <b>${esc(b.first)}</b> sont à égalité.`
-    : `<b>${esc((diff > 0 ? a : b).first)}</b> a <b>${km(Math.abs(diff))} km</b> d'avance (${plural(Math.abs(lapsDiff), "tour")}) sur <b>${esc((diff > 0 ? b : a).first)}</b>.`;
+  const [na, nb] = pairNames(a, b);
+  const lead = diff === 0 ? `<b>${esc(na)}</b> et <b>${esc(nb)}</b> sont à égalité.`
+    : `<b>${esc(diff > 0 ? na : nb)}</b> a <b>${km(Math.abs(diff))} km</b> d'avance (${plural(Math.abs(lapsDiff), "tour")}) sur <b>${esc(diff > 0 ? nb : na)}</b>.`;
   return `
   <section class="card">
     <div class="pickers">
@@ -496,10 +501,10 @@ function compareView(a, b) {
       <div class="legend"><span><i style="background:var(--team)"></i>${esc(a.name)}</span><span><i style="background:var(--team-2)"></i>${esc(b.name)}</span></div>
       <div class="chart sm"><canvas id="cCmp" role="img" aria-label="Kilomètres cumulés des deux marcheurs"></canvas></div></div>
     <div class="card"><div class="card-h"><div><h3>Par jour</h3><p>Kilomètres parcourus chaque jour</p></div></div>
-      <div class="legend"><span><i style="background:var(--team)"></i>${esc(a.first)}</span><span><i style="background:var(--team-2)"></i>${esc(b.first)}</span></div>
+      <div class="legend"><span><i style="background:var(--team)"></i>${esc(na)}</span><span><i style="background:var(--team-2)"></i>${esc(nb)}</span></div>
       <div class="chart sm"><canvas id="cCmpDay" role="img" aria-label="Kilomètres par jour des deux marcheurs"></canvas></div></div>
   </section>
-  <p class="muted"><a href="#coureur-${a.bib}">Fiche de ${esc(a.first)}</a> · <a href="#coureur-${b.bib}">Fiche de ${esc(b.first)}</a></p>`;
+  <p class="muted"><a href="#coureur-${a.bib}">Fiche de ${esc(na)}</a> · <a href="#coureur-${b.bib}">Fiche de ${esc(nb)}</a></p>`;
 }
 
 /* ---------- graphiques ---------- */
@@ -581,8 +586,9 @@ function drawRunner(m) {
   chart("cRunDay", { type: "bar", data: { labels: dayLabels(), datasets: [bars(m.name, daily(s => runnerKm(s, m.bib)), "--team")] }, options: opts("cat") });
 }
 function drawCompare(a, b) {
-  chart("cCmp", { type: "line", data: { datasets: [line(a.first, series(s => runnerKm(s, a.bib)), "--team", false), line(b.first, series(s => runnerKm(s, b.bib)), "--team-2", false)] }, options: opts("time") });
-  chart("cCmpDay", { type: "bar", data: { labels: dayLabels(), datasets: [bars(a.first, daily(s => runnerKm(s, a.bib)), "--team"), bars(b.first, daily(s => runnerKm(s, b.bib)), "--team-2")] }, options: opts("cat") });
+  const [na, nb] = pairNames(a, b);
+  chart("cCmp", { type: "line", data: { datasets: [line(na, series(s => runnerKm(s, a.bib)), "--team", false), line(nb, series(s => runnerKm(s, b.bib)), "--team-2", false)] }, options: opts("time") });
+  chart("cCmpDay", { type: "bar", data: { labels: dayLabels(), datasets: [bars(na, daily(s => runnerKm(s, a.bib)), "--team"), bars(nb, daily(s => runnerKm(s, b.bib)), "--team-2")] }, options: opts("cat") });
 }
 
 /* ---------- routage et rendu ---------- */
