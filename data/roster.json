@@ -1,5 +1,5 @@
 {
- "updatedAt": "2026-11-18T11:23:48.928Z",
+ "updatedAt": "2026-11-18T12:24:14.072Z",
  "eventId": 101,
  "races": [
   {
@@ -43,9 +43,9 @@
    "last": "Leherle",
    "sex": "F",
    "cat": "SE",
-   "nbCat": 1924,
-   "nbSex": 4349,
-   "nbTotal": 8209
+   "nbCat": 1976,
+   "nbSex": 4434,
+   "nbTotal": 8360
   },
   {
    "bib": 4304,
@@ -54,9 +54,9 @@
    "last": "Leherle",
    "sex": "F",
    "cat": "M4",
-   "nbCat": 701,
-   "nbSex": 4349,
-   "nbTotal": 8209
+   "nbCat": 716,
+   "nbSex": 4434,
+   "nbTotal": 8360
   },
   {
    "bib": 6221,
@@ -65,9 +65,9 @@
    "last": "Monnot",
    "sex": "M",
    "cat": "SE",
-   "nbCat": 1924,
-   "nbSex": 3860,
-   "nbTotal": 8209
+   "nbCat": 1976,
+   "nbSex": 3926,
+   "nbTotal": 8360
   },
   {
    "bib": 12638,
@@ -76,9 +76,9 @@
    "last": "Nguyen",
    "sex": "F",
    "cat": "SE",
-   "nbCat": 1924,
-   "nbSex": 4349,
-   "nbTotal": 8209
+   "nbCat": 1976,
+   "nbSex": 4434,
+   "nbTotal": 8360
   },
   {
    "bib": 6218,
@@ -87,9 +87,9 @@
    "last": "Petit",
    "sex": "F",
    "cat": "M3",
-   "nbCat": 793,
-   "nbSex": 4349,
-   "nbTotal": 8209
+   "nbCat": 805,
+   "nbSex": 4434,
+   "nbTotal": 8360
   },
   {
    "bib": 6219,
@@ -98,9 +98,9 @@
    "last": "Piguet",
    "sex": "F",
    "cat": "M3",
-   "nbCat": 793,
-   "nbSex": 4349,
-   "nbTotal": 8209
+   "nbCat": 805,
+   "nbSex": 4434,
+   "nbTotal": 8360
   }
  ]
 }
