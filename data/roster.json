@@ -1,5 +1,5 @@
 {
- "updatedAt": "2026-11-21T02:39:23.607Z",
+ "updatedAt": "2026-11-21T03:39:23.988Z",
  "eventId": 101,
  "races": [
   {
@@ -78,7 +78,7 @@
    "cat": "SE",
    "nbCat": 2366,
    "nbSex": 5314,
-   "nbTotal": 10015
+   "nbTotal": 10016
   },
   {
    "bib": 6218,
@@ -98,9 +98,9 @@
    "last": "Piguet",
    "sex": "F",
    "cat": "M3",
-   "nbCat": 954,
+   "nbCat": 955,
    "nbSex": 5314,
-   "nbTotal": 10015
+   "nbTotal": 10016
   }
  ]
 }
