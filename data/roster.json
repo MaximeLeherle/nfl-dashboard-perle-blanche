@@ -1,5 +1,5 @@
 {
- "updatedAt": "2026-11-21T21:20:34.112Z",
+ "updatedAt": "2026-11-21T22:20:58.330Z",
  "eventId": 101,
  "races": [
   {
@@ -45,7 +45,7 @@
    "cat": "SE",
    "nbCat": 2437,
    "nbSex": 5506,
-   "nbTotal": 10376
+   "nbTotal": 10377
   },
   {
    "bib": 4304,
@@ -56,7 +56,7 @@
    "cat": "M4",
    "nbCat": 888,
    "nbSex": 5506,
-   "nbTotal": 10376
+   "nbTotal": 10377
   },
   {
    "bib": 6221,
@@ -66,8 +66,8 @@
    "sex": "M",
    "cat": "SE",
    "nbCat": 2437,
-   "nbSex": 4870,
-   "nbTotal": 10376
+   "nbSex": 4871,
+   "nbTotal": 10377
   },
   {
    "bib": 12638,
@@ -78,7 +78,7 @@
    "cat": "SE",
    "nbCat": 2437,
    "nbSex": 5506,
-   "nbTotal": 10376
+   "nbTotal": 10377
   },
   {
    "bib": 6218,
@@ -89,7 +89,7 @@
    "cat": "M3",
    "nbCat": 988,
    "nbSex": 5506,
-   "nbTotal": 10376
+   "nbTotal": 10377
   },
   {
    "bib": 6219,
@@ -100,7 +100,7 @@
    "cat": "M3",
    "nbCat": 988,
    "nbSex": 5506,
-   "nbTotal": 10376
+   "nbTotal": 10377
   }
  ]
 }
