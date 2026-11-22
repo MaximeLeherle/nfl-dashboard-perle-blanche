@@ -1,5 +1,5 @@
 {
- "updatedAt": "2026-11-22T05:36:29.503Z",
+ "updatedAt": "2026-11-22T06:36:29.533Z",
  "eventId": 101,
  "races": [
   {
@@ -45,7 +45,7 @@
    "cat": "SE",
    "nbCat": 2437,
    "nbSex": 5508,
-   "nbTotal": 10382
+   "nbTotal": 10383
   },
   {
    "bib": 4304,
@@ -54,9 +54,9 @@
    "last": "Leherle",
    "sex": "F",
    "cat": "M4",
-   "nbCat": 889,
+   "nbCat": 890,
    "nbSex": 5508,
-   "nbTotal": 10382
+   "nbTotal": 10383
   },
   {
    "bib": 6221,
@@ -66,8 +66,8 @@
    "sex": "M",
    "cat": "SE",
    "nbCat": 2437,
-   "nbSex": 4874,
-   "nbTotal": 10382
+   "nbSex": 4875,
+   "nbTotal": 10383
   },
   {
    "bib": 12638,
@@ -78,7 +78,7 @@
    "cat": "SE",
    "nbCat": 2437,
    "nbSex": 5508,
-   "nbTotal": 10382
+   "nbTotal": 10383
   },
   {
    "bib": 6218,
@@ -89,7 +89,7 @@
    "cat": "M3",
    "nbCat": 990,
    "nbSex": 5508,
-   "nbTotal": 10382
+   "nbTotal": 10383
   },
   {
    "bib": 6219,
@@ -100,7 +100,7 @@
    "cat": "M3",
    "nbCat": 990,
    "nbSex": 5508,
-   "nbTotal": 10382
+   "nbTotal": 10383
   }
  ]
 }
